@@ -1,0 +1,13 @@
+*.class
+*.jar
+out/
+build/
+target/
+*.iml
+.idea/
+*.db
+*.sqlite
+.DS_Store
+Thumbs.db
+node_modules/
+.env

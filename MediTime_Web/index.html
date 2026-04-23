@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Security: Content Security Policy (CSP) -->
+    <!-- Allows scripts only from self (no external CDNs for scripts) -->
+    <!-- Allows styles from self and Google Fonts -->
+    <!-- Blocks inline scripts (need to move any inline JS to external file if present) -->
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:;">
+
+    <title>MediTime PRO</title>
+    <!-- Preconnect to fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#f0f7f4">
+    <meta name="description" content="Asistente de medicación con SOS">
+</head>
+
+<body>
+
+    <!-- Top Bar -->
+    <header class="top-bar">
+        <div class="logo">💊 MediTime</div>
+        <div class="top-actions">
+            <button class="sos-btn-mini" onclick="navigateTo('emergency')">🆘 SOS</button>
+            <button id="voice-btn" class="voice-btn" aria-label="Voz">🎤</button>
+        </div>
+    </header>
+
+    <main id="app-container">
+
+        <!-- VIEW: WELCOME -->
+        <section id="view-welcome" class="view active">
+            <div class="welcome-header">
+                <h1>Hola,<br>¿Cómo te sientes hoy?</h1>
+            </div>
+
+            <div class="card">
+                <div class="status-ring">
+                    <div class="status-text">
+                        <span id="progress-percent">0%</span>
+                        <div style="font-size: 0.8rem; color:#999">Completado</div>
+                    </div>
+                </div>
+                <p style="text-align: center; color: #666" id="today-summary">Cargando...</p>
+            </div>
+
+            <button class="btn-primary" onclick="navigateTo('menu')">Ir al Menú</button>
+        </section>
+
+        <!-- VIEW: MENU -->
+        <section id="view-menu" class="view">
+            <h2>Menú Principal</h2>
+            <div class="menu-grid">
+                <button class="menu-item" onclick="navigateTo('add')">
+                    <span class="menu-icon">➕</span>
+                    <span>Agregar</span>
+                </button>
+                <button class="menu-item" onclick="navigateTo('list')">
+                    <span class="menu-icon">📋</span>
+                    <span>Lista</span>
+                </button>
+                <button class="menu-item" onclick="navigateTo('emergency')">
+                    <span class="menu-icon">🚨</span>
+                    <span>SOS 911</span>
+                </button>
+                <button class="menu-item" onclick="navigateTo('settings')">
+                    <span class="menu-icon">⚙️</span>
+                    <span>Ajustes</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- VIEW: ADD -->
+        <section id="view-add" class="view">
+            <h2>Nueva Medicina</h2>
+            <div class="card">
+                <form id="add-medicine-form">
+                    <label>Nombre</label>
+                    <input type="text" id="med-name" placeholder="Ej. Insulina" required>
+
+                    <label>Dosis</label>
+                    <input type="text" id="med-dose" placeholder="Ej. 1 unidad" required>
+
+                    <label>Hora</label>
+                    <input type="time" id="med-time" required>
+
+                    <label>Prioridad</label>
+                    <select id="med-priority">
+                        <option value="NORMAL">Normal</option>
+                        <option value="URGENTE">🚨 Alta (Urgente)</option>
+                    </select>
+
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button type="button" class="btn-secondary" onclick="navigateTo('menu')">Cancelar</button>
+                        <button type="submit" class="btn-primary">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- VIEW: LIST -->
+        <section id="view-list" class="view">
+            <h2>Mis Medicamentos</h2>
+            <div id="medicine-list-container">
+                <!-- Items injected here -->
+            </div>
+        </section>
+
+        <!-- VIEW: EMERGENCY (SOS) -->
+        <section id="view-emergency" class="view">
+            <div class="emergency-panel">
+                <h2>🚨 EMERGENCIA 🚨</h2>
+                <p>Tu ubicación actual es:</p>
+                <div id="location-display" class="location-box">
+                    Obteniendo GPS...
+                </div>
+                <p style="font-size: 0.9rem; margin-bottom: 20px; opacity: 0.9">Dicta estas coordenadas al operador.</p>
+
+                <a href="tel:911" class="btn-sos-call">
+                    📞 LLAMAR 911
+                </a>
+            </div>
+            <br>
+            <button class="btn-secondary" onclick="navigateTo('menu')">Volver</button>
+        </section>
+
+        <!-- VIEW: SETTINGS -->
+        <section id="view-settings" class="view">
+            <h2>Ajustes</h2>
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0;">
+                    <span>Modo Lectura (Voz)</span>
+                    <input type="checkbox" id="setting-a11y-toggle" style="width: auto;">
+                </div>
+                <hr style="border: 0; border-top: 1px solid #eee;">
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0;">
+                    <span>Alto Contraste</span>
+                    <input type="checkbox" id="setting-contrast-toggle" style="width: auto;">
+                </div>
+                <br>
+                <button class="btn-secondary" style="color: red; border-color: red;" id="btn-clear-data">Borrar
+                    Todo</button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Bottom Nav -->
+    <nav class="bottom-nav">
+        <button class="nav-btn active" onclick="navigateTo('welcome')" data-target="welcome">
+            <span>🏠</span>
+        </button>
+        <button class="nav-btn" onclick="navigateTo('list')" data-target="list">
+            <span>💊</span>
+        </button>
+        <button class="nav-btn" onclick="navigateTo('emergency')" data-target="emergency">
+            <span>🆘</span>
+        </button>
+    </nav>
+
+    <!-- Modal -->
+    <div id="notification-modal"
+        style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; align-items:center; justify-content:center; padding:20px;">
+        <div style="background:white; padding:30px; border-radius:20px; text-align:center; width:100%;">
+            <h2 id="notif-title">Hora de Medicina</h2>
+            <p id="notif-message">Mensaje</p>
+            <br>
+            <button id="btn-confirm" class="btn-primary">✅ Tomar Ahora</button>
+            <br><br>
+            <button id="btn-snooze" class="btn-secondary">⏰ Posponer</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        // Check for Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('serviceWorker.js');
+        }
+    </script>
+</body>
+
+</html>
