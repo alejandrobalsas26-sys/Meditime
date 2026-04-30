@@ -28,6 +28,7 @@ const locationDisplay = document.getElementById('location-display');
 window.addEventListener('DOMContentLoaded', () => {
     loadData();
     setupEventListeners();
+    setupA11yTouch();
     renderList();
     updateDashboard();
     startReminderLoop();
@@ -98,9 +99,33 @@ window.navigateTo = function (viewName) {
 };
 
 // --- EMERGENCY LOGIC ---
+let sosInterval;
+
 function initEmergency() {
     if (!locationDisplay) return;
     locationDisplay.textContent = "📡 Obteniendo satélites...";
+
+    // Configurar cuenta atrás
+    clearInterval(sosInterval);
+    let countdown = 10;
+    const countdownEl = document.getElementById('sos-countdown');
+    const statusTextEl = document.getElementById('sos-status-text');
+    
+    if (countdownEl) countdownEl.textContent = countdown;
+    if (statusTextEl) statusTextEl.textContent = `Llamando a emergencias en ${countdown}s...`;
+
+    sosInterval = setInterval(() => {
+        countdown--;
+        if (countdownEl) countdownEl.textContent = countdown;
+        if (statusTextEl) statusTextEl.textContent = `Llamando a emergencias en ${countdown}s...`;
+
+        if (countdown <= 0) {
+            clearInterval(sosInterval);
+            if (statusTextEl) statusTextEl.textContent = "¡Llamando al 911!";
+            speak("Llamando a emergencias ahora.");
+            window.location.href = "tel:911";
+        }
+    }, 1000);
 
     if (!navigator.geolocation) {
         locationDisplay.textContent = "❌ GPS no soportado en este dispositivo.";
@@ -142,7 +167,57 @@ function initEmergency() {
     );
 }
 
+window.cancelEmergency = function() {
+    clearInterval(sosInterval);
+    const statusTextEl = document.getElementById('sos-status-text');
+    if (statusTextEl) statusTextEl.textContent = "Emergencia cancelada.";
+    const countdownEl = document.getElementById('sos-countdown');
+    if (countdownEl) countdownEl.textContent = "-";
+    speak("Llamada de emergencia cancelada.");
+    navigateTo('menu');
+};
+
 // --- CORE APP LOGIC ---
+
+function setupA11yTouch() {
+    let lastTouchedElement = null;
+    let lastTouchTime = 0;
+
+    window.addEventListener('click', (e) => {
+        if (!settings.a11yMode) return;
+        
+        // No bloquear el botón que apaga el modo accesibilidad ni los checks
+        if (e.target.id === 'setting-a11y-toggle' || e.target.type === 'checkbox') return;
+
+        // Buscar el elemento interactivo más cercano
+        const target = e.target.closest('button, a, input, select, .menu-item');
+        
+        if (target) {
+            const now = Date.now();
+            if (lastTouchedElement === target && (now - lastTouchTime) < 2000) {
+                // Doble toque (menos de 2 segundos): permitir acción
+                lastTouchedElement = null;
+            } else {
+                // Primer toque: bloquear acción y leer
+                e.preventDefault();
+                e.stopPropagation();
+                
+                let textToRead = target.getAttribute('aria-label') || target.innerText || target.value || target.placeholder || "Botón";
+                // Limpiar texto para lectura básica si hace falta (quitar emojis)
+                textToRead = textToRead.replace(/[^\w\s\u00C0-\u017FñÑ.,:]/g, '').trim(); 
+                if(!textToRead) textToRead = "Botón";
+
+                speak(textToRead + ". Toca dos veces seguidas para activar.");
+                
+                lastTouchedElement = target;
+                lastTouchTime = now;
+            }
+        } else {
+            // Tocó espacio vacío
+            speak("Espacio no interactivo. Explora tocando la pantalla.");
+        }
+    }, true); // Capture phase: intercepta antes de que ocurra el click real
+}
 
 function setupEventListeners() {
     if (form) {

@@ -19,7 +19,33 @@
 
 /* Accessibility Mode */
 body.a11y-mode {
-    --font-size-base: 22px;
+    --font-size-base: 24px;
+}
+
+body.a11y-mode .menu-grid {
+    grid-template-columns: 1fr; /* Una sola columna para botones grandes */
+}
+
+body.a11y-mode button, 
+body.a11y-mode .menu-item, 
+body.a11y-mode input, 
+body.a11y-mode select {
+    padding: 30px 20px;
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+    border: 3px solid var(--text-primary);
+}
+
+body.a11y-mode .nav-btn {
+    padding: 20px 10px;
+}
+
+body.a11y-mode .nav-btn span {
+    font-size: 2.5rem;
+}
+
+body.a11y-mode .bottom-nav {
+    padding: 15px;
 }
 
 body.high-contrast {
@@ -196,7 +222,12 @@ h2 {
     box-shadow: var(--shadow-soft);
     border: none;
     cursor: pointer;
-    transition: transform 0.1s;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.menu-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.25);
 }
 
 .menu-item:active {
@@ -239,6 +270,16 @@ input:focus {
     font-weight: 600;
     box-shadow: 0 4px 15px rgba(0, 200, 83, 0.4);
     cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-primary:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 200, 83, 0.6);
+}
+
+.btn-primary:active {
+    transform: scale(0.98);
 }
 
 .btn-secondary {
@@ -250,6 +291,16 @@ input:focus {
     font-weight: 600;
     color: inherit;
     cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.btn-secondary:hover {
+    background: rgba(0, 0, 0, 0.05);
+    transform: translateY(-2px);
+}
+
+.btn-secondary:active {
+    transform: scale(0.98);
 }
 
 /* List */
