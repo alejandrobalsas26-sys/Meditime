@@ -1,200 +1,358 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" dir="ltr">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- Security: Content Security Policy (CSP) -->
-    <!-- Allows scripts only from self (no external CDNs for scripts) -->
-    <!-- Allows styles from self and Google Fonts -->
-    <!-- Blocks inline scripts (need to move any inline JS to external file if present) -->
-    <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:;">
-
-    <title>MediTime PRO</title>
-    <!-- Preconnect to fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#f0f7f4">
-    <meta name="description" content="Asistente de medicación con SOS">
+  <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MediTime">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0D9488">
+  <meta name="description"
+    content="Recordatorio de medicamentos con SOS de emergencia. Accesible para adultos mayores.">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self';">
+  <title>MediTime PRO</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
 </head>
 
 <body>
 
-    <!-- Top Bar -->
-    <header class="top-bar">
-        <div class="logo">💊 MediTime</div>
-        <div class="top-actions">
-            <button class="sos-btn-mini" onclick="navigateTo('emergency')">🆘 SOS</button>
-            <button id="voice-btn" class="voice-btn" aria-label="Voz">🎤</button>
-        </div>
-    </header>
+  <!-- Splash Screen -->
+  <div id="splash-screen" role="status" aria-label="Cargando MediTime" aria-live="polite">
+    <div class="splash-logo" aria-hidden="true">💊</div>
+    <div class="splash-title">MediTime PRO</div>
+    <div class="splash-subtitle">Cargando...</div>
+  </div>
 
-    <main id="app-container">
+  <!-- Toast Notification -->
+  <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-        <!-- VIEW: WELCOME -->
-        <section id="view-welcome" class="view active">
-            <div class="welcome-header">
-                <h1>Hola,<br>¿Cómo te sientes hoy?</h1>
-            </div>
-
-            <div class="card">
-                <div class="status-ring">
-                    <div class="status-text">
-                        <span id="progress-percent">0%</span>
-                        <div style="font-size: 0.8rem; color:#999">Completado</div>
-                    </div>
-                </div>
-                <p style="text-align: center; color: #666" id="today-summary">Cargando...</p>
-            </div>
-
-            <button class="btn-primary" onclick="navigateTo('menu')">Ir al Menú</button>
-        </section>
-
-        <!-- VIEW: MENU -->
-        <section id="view-menu" class="view">
-            <h2>Menú Principal</h2>
-            <div class="menu-grid">
-                <button class="menu-item" onclick="navigateTo('add')">
-                    <span class="menu-icon">➕</span>
-                    <span>Agregar</span>
-                </button>
-                <button class="menu-item" onclick="navigateTo('list')">
-                    <span class="menu-icon">📋</span>
-                    <span>Lista</span>
-                </button>
-                <button class="menu-item" onclick="navigateTo('emergency')">
-                    <span class="menu-icon">🚨</span>
-                    <span>SOS 911</span>
-                </button>
-                <button class="menu-item" onclick="navigateTo('settings')">
-                    <span class="menu-icon">⚙️</span>
-                    <span>Ajustes</span>
-                </button>
-            </div>
-        </section>
-
-        <!-- VIEW: ADD -->
-        <section id="view-add" class="view">
-            <h2>Nueva Medicina</h2>
-            <div class="card">
-                <form id="add-medicine-form">
-                    <label>Nombre</label>
-                    <input type="text" id="med-name" placeholder="Ej. Insulina" required>
-
-                    <label>Dosis</label>
-                    <input type="text" id="med-dose" placeholder="Ej. 1 unidad" required>
-
-                    <label>Hora</label>
-                    <input type="time" id="med-time" required>
-
-                    <label>Prioridad</label>
-                    <select id="med-priority">
-                        <option value="NORMAL">Normal</option>
-                        <option value="URGENTE">🚨 Alta (Urgente)</option>
-                    </select>
-
-                    <div style="display: flex; gap: 10px; margin-top: 20px;">
-                        <button type="button" class="btn-secondary" onclick="navigateTo('menu')">Cancelar</button>
-                        <button type="submit" class="btn-primary">Guardar</button>
-                    </div>
-                </form>
-            </div>
-        </section>
-
-        <!-- VIEW: LIST -->
-        <section id="view-list" class="view">
-            <h2>Mis Medicamentos</h2>
-            <div id="medicine-list-container">
-                <!-- Items injected here -->
-            </div>
-            <br>
-            <button class="btn-secondary" onclick="navigateTo('menu')">Volver al Menú</button>
-        </section>
-
-        <!-- VIEW: EMERGENCY (SOS) -->
-        <section id="view-emergency" class="view">
-            <div class="emergency-panel">
-                <h2>🚨 EMERGENCIA 🚨</h2>
-                <p>Tu ubicación actual es:</p>
-                <div id="location-display" class="location-box">
-                    Obteniendo GPS...
-                </div>
-                <p style="font-size: 0.9rem; margin-bottom: 20px; opacity: 0.9">Dicta estas coordenadas al operador.</p>
-
-                <div id="sos-countdown-container" style="margin: 15px 0;">
-                    <div id="sos-countdown" style="font-size: 3.5rem; font-weight: bold; color: white; line-height: 1;">
-                        10</div>
-                    <p id="sos-status-text" style="font-size: 1rem; color: white; opacity: 0.9; margin-top: 5px;">
-                        Llamando a emergencias en 10s...</p>
-                </div>
-
-                <a href="tel:911" class="btn-sos-call">
-                    📞 LLAMAR 911 AHORA
-                </a>
-            </div>
-            <br>
-            <button class="btn-secondary" onclick="cancelEmergency()"
-                style="color: var(--danger-color); border-color: var(--danger-color); font-weight: bold;">Cancelar
-                Emergencia</button>
-        </section>
-
-        <!-- VIEW: SETTINGS -->
-        <section id="view-settings" class="view">
-            <h2>Ajustes</h2>
-            <div class="card">
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0;">
-                    <span>Modo Lectura (Voz)</span>
-                    <input type="checkbox" id="setting-a11y-toggle" style="width: auto;">
-                </div>
-                <hr style="border: 0; border-top: 1px solid #eee;">
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0;">
-                    <span>Alto Contraste</span>
-                    <input type="checkbox" id="setting-contrast-toggle" style="width: auto;">
-                </div>
-                <br>
-                <button class="btn-secondary" style="color: red; border-color: red;" id="btn-clear-data">Borrar
-                    Todo</button>
-            </div>
-        </section>
-
-    </main>
-
-    <!-- Bottom Nav -->
-    <nav class="bottom-nav">
-        <button class="nav-btn active" onclick="navigateTo('welcome')" data-target="welcome">
-            <span>🏠</span>
-        </button>
-        <button class="nav-btn" onclick="navigateTo('list')" data-target="list">
-            <span>💊</span>
-        </button>
-        <button class="nav-btn" onclick="navigateTo('emergency')" data-target="emergency">
-            <span>🆘</span>
-        </button>
-    </nav>
-
-    <!-- Modal -->
-    <div id="notification-modal"
-        style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; align-items:center; justify-content:center; padding:20px;">
-        <div style="background:white; padding:30px; border-radius:20px; text-align:center; width:100%;">
-            <h2 id="notif-title">Hora de Medicina</h2>
-            <p id="notif-message">Mensaje</p>
-            <br>
-            <button id="btn-confirm" class="btn-primary">✅ Tomar Ahora</button>
-            <br><br>
-            <button id="btn-snooze" class="btn-secondary">⏰ Posponer</button>
-        </div>
+  <!-- Top Bar -->
+  <header class="top-bar" role="banner">
+    <div class="top-bar-left">
+      <span class="logo" aria-label="MediTime PRO inicio" aria-hidden="true">💊</span>
+      <span class="logo-text">MediTime</span>
     </div>
+    <div class="top-bar-right">
+      <span id="top-clock" class="top-clock" aria-live="off" aria-label="Hora actual"></span>
+      <button id="btn-tts" class="icon-btn" aria-label="Activar lectura de voz" aria-pressed="false" title="Voz">
+        <span aria-hidden="true">🔊</span>
+      </button>
+    </div>
+  </header>
 
-    <script src="app.js"></script>
-    <script>
-        // Check for Service Worker
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('service-worker.js');
-        }
-    </script>
+  <!-- Main App -->
+  <main id="app-main" role="main">
+
+    <!-- ═══════════════════════════════════ VIEW: INICIO ═══ -->
+    <section id="view-inicio" class="view active" aria-label="Inicio – resumen del día">
+
+      <div class="greeting-block">
+        <p id="greeting-text" class="greeting" aria-live="polite">Buenos días</p>
+        <h1 id="patient-name-display" class="patient-name">Mi Medicación</h1>
+      </div>
+
+      <!-- Donut progress ring -->
+      <div class="donut-container" role="img" aria-label="Progreso de medicamentos tomados hoy">
+        <svg class="donut-svg" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="donut-track" cx="60" cy="60" r="50" />
+          <circle id="donut-progress" class="donut-bar" cx="60" cy="60" r="50" stroke-dasharray="314.16"
+            stroke-dashoffset="314.16" />
+        </svg>
+        <div class="donut-label">
+          <span id="progress-percent" class="donut-percent">0%</span>
+          <span class="donut-sub">Completado</span>
+        </div>
+      </div>
+
+      <p id="today-summary" class="summary-text" aria-live="polite">Cargando medicamentos...</p>
+
+      <!-- Próxima alarma -->
+      <div id="next-alarm-card" class="card next-alarm-card" aria-label="Próxima alarma">
+        <span class="next-alarm-icon" aria-hidden="true">⏰</span>
+        <div>
+          <p class="next-alarm-label">Próxima dosis</p>
+          <p id="next-alarm-time" class="next-alarm-time">—</p>
+        </div>
+      </div>
+
+      <!-- Alarmas pendientes del día -->
+      <div id="today-alarms" class="today-alarms" aria-label="Alarmas de hoy" aria-live="polite"></div>
+
+    </section>
+
+    <!-- ═══════════════════════════════════ VIEW: MEDICINAS ═══ -->
+    <section id="view-medicinas" class="view" aria-label="Lista de medicamentos" hidden>
+
+      <div class="view-header">
+        <h2>Mis Medicamentos</h2>
+        <button id="btn-add-med" class="btn-fab" aria-label="Agregar nuevo medicamento">
+          <span aria-hidden="true">＋</span>
+        </button>
+      </div>
+
+      <div id="med-list-container" aria-live="polite" aria-label="Lista de medicamentos guardados"></div>
+
+      <!-- Formulario agregar/editar -->
+      <div id="med-form-panel" class="form-panel" hidden aria-label="Formulario de medicamento">
+        <h3 id="form-title">Agregar Medicamento</h3>
+        <form id="med-form" novalidate>
+          <input type="hidden" id="edit-med-id">
+
+          <label for="f-name">Nombre del medicamento <span aria-hidden="true">*</span></label>
+          <input type="text" id="f-name" name="nombre" placeholder="Ej: Metformina" required autocomplete="off"
+            maxlength="60" aria-required="true">
+
+          <label for="f-dose">Dosis</label>
+          <input type="text" id="f-dose" name="dosis" placeholder="Ej: 500 mg" maxlength="40" autocomplete="off">
+
+          <label for="f-notes">Instrucciones / Notas</label>
+          <textarea id="f-notes" name="notas" placeholder="Ej: Tomar con el desayuno" rows="2"
+            maxlength="200"></textarea>
+
+          <label>Horarios de toma <span aria-hidden="true">*</span></label>
+          <div id="times-container" class="times-container"></div>
+          <button type="button" id="btn-add-time" class="btn-outline" aria-label="Agregar horario">
+            <span aria-hidden="true">＋</span> Agregar horario
+          </button>
+
+          <label for="f-freq">Frecuencia</label>
+          <select id="f-freq" name="frecuencia" aria-label="Frecuencia de toma">
+            <option value="diario">Todos los días</option>
+            <option value="semana">Días de semana (Lun–Vie)</option>
+            <option value="finde">Fines de semana (Sáb–Dom)</option>
+            <option value="alterno">Días alternos</option>
+          </select>
+
+          <label for="f-priority">Prioridad</label>
+          <select id="f-priority" name="prioridad" aria-label="Nivel de prioridad">
+            <option value="normal">Normal</option>
+            <option value="urgente">🚨 Urgente</option>
+          </select>
+
+          <label for="f-color">Color de etiqueta</label>
+          <div class="color-picker" id="f-color" role="radiogroup" aria-label="Color de etiqueta"></div>
+
+          <div class="form-actions">
+            <button type="button" id="btn-cancel-form" class="btn-secondary"
+              aria-label="Cancelar y cerrar formulario">Cancelar</button>
+            <button type="submit" class="btn-primary" aria-label="Guardar medicamento">Guardar</button>
+          </div>
+        </form>
+      </div>
+
+    </section>
+
+    <!-- ═══════════════════════════════════ VIEW: SOS ═══ -->
+    <section id="view-sos" class="view" aria-label="Pantalla de emergencia SOS" hidden>
+
+      <div class="sos-panel" role="alertdialog" aria-modal="true" aria-label="Emergencia activa">
+        <div class="sos-header">
+          <span class="sos-icon" aria-hidden="true">🚨</span>
+          <h2>EMERGENCIA</h2>
+          <span class="sos-icon" aria-hidden="true">🚨</span>
+        </div>
+
+        <p class="sos-instruction">Tu ubicación GPS:</p>
+        <div id="sos-location" class="sos-location-box" aria-live="polite" aria-label="Coordenadas GPS">
+          Obteniendo señal GPS...
+        </div>
+
+        <div id="sos-countdown-wrap" class="sos-countdown-wrap" aria-live="assertive">
+          <div id="sos-countdown" class="sos-countdown">10</div>
+          <p id="sos-status" class="sos-status">Llamando en 10 segundos…</p>
+        </div>
+
+        <a id="sos-call-btn" href="#" class="btn-sos-call" role="button"
+          aria-label="Llamar al número de emergencia ahora">
+          <span aria-hidden="true">📞</span> LLAMAR AHORA
+        </a>
+
+        <button id="btn-cancel-sos" class="btn-cancel-sos" aria-label="Cancelar llamada de emergencia">
+          Cancelar emergencia
+        </button>
+      </div>
+
+    </section>
+
+    <!-- ═══════════════════════════════════ VIEW: HISTORIAL ═══ -->
+    <section id="view-historial" class="view" aria-label="Historial de medicamentos" hidden>
+
+      <div class="view-header">
+        <h2>Historial</h2>
+        <span class="subtitle">Últimos 30 días</span>
+      </div>
+
+      <div id="history-stats" class="history-stats" aria-label="Estadísticas de adherencia"></div>
+      <div id="history-list" class="history-list" aria-live="polite" aria-label="Registros del historial"></div>
+
+    </section>
+
+    <!-- ═══════════════════════════════════ VIEW: AJUSTES ═══ -->
+    <section id="view-ajustes" class="view" aria-label="Ajustes de la aplicación" hidden>
+
+      <h2>Ajustes</h2>
+
+      <!-- Perfil del paciente -->
+      <div class="settings-group" aria-labelledby="group-perfil">
+        <h3 id="group-perfil" class="settings-group-title">Perfil del Paciente</h3>
+        <label for="s-patient-name">Tu nombre</label>
+        <input type="text" id="s-patient-name" placeholder="Ej: Carmen López" maxlength="60">
+        <label for="s-patient-age">Edad</label>
+        <input type="number" id="s-patient-age" placeholder="Ej: 72" min="1" max="130">
+        <label for="s-doctor-name">Nombre del médico</label>
+        <input type="text" id="s-doctor-name" placeholder="Ej: Dr. García" maxlength="60">
+        <label for="s-doctor-phone">Teléfono del médico</label>
+        <input type="tel" id="s-doctor-phone" placeholder="Ej: 555-1234">
+      </div>
+
+      <!-- Contactos de emergencia -->
+      <div class="settings-group" aria-labelledby="group-contactos">
+        <h3 id="group-contactos" class="settings-group-title">Contactos de Emergencia</h3>
+        <div id="contacts-list" aria-label="Lista de contactos de emergencia" aria-live="polite"></div>
+        <div class="contact-add-row">
+          <input type="text" id="s-contact-name" placeholder="Nombre del contacto" maxlength="60"
+            aria-label="Nombre del nuevo contacto">
+          <input type="tel" id="s-contact-phone" placeholder="Teléfono" aria-label="Teléfono del nuevo contacto">
+          <button id="btn-add-contact" class="btn-outline" aria-label="Agregar contacto">
+            <span aria-hidden="true">＋</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Número SOS -->
+      <div class="settings-group" aria-labelledby="group-sos">
+        <h3 id="group-sos" class="settings-group-title">Número SOS de Emergencia</h3>
+        <label for="s-sos-number">Número a marcar en SOS</label>
+        <input type="tel" id="s-sos-number" placeholder="Ej: 911" aria-label="Número de emergencia SOS">
+      </div>
+
+      <!-- Recordatorios y notificaciones -->
+      <div class="settings-group" aria-labelledby="group-notif">
+        <h3 id="group-notif" class="settings-group-title">Notificaciones</h3>
+        <div class="toggle-row">
+          <label for="s-notif-toggle" class="toggle-label">Activar notificaciones</label>
+          <button id="s-notif-toggle" class="toggle-btn" role="switch" aria-checked="false"
+            aria-label="Activar o desactivar notificaciones">
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
+        <label for="s-snooze-time">Tiempo de posponer</label>
+        <select id="s-snooze-time" aria-label="Minutos de posponer alarma">
+          <option value="5">5 minutos</option>
+          <option value="10" selected>10 minutos</option>
+          <option value="15">15 minutos</option>
+          <option value="30">30 minutos</option>
+        </select>
+      </div>
+
+      <!-- Accesibilidad -->
+      <div class="settings-group" aria-labelledby="group-a11y">
+        <h3 id="group-a11y" class="settings-group-title">Accesibilidad</h3>
+        <div class="toggle-row">
+          <label for="s-tts-toggle" class="toggle-label">Lectura por voz (TTS)</label>
+          <button id="s-tts-toggle" class="toggle-btn" role="switch" aria-checked="false"
+            aria-label="Activar o desactivar lectura de voz">
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
+        <div class="toggle-row">
+          <label for="s-contrast-toggle" class="toggle-label">Alto contraste</label>
+          <button id="s-contrast-toggle" class="toggle-btn" role="switch" aria-checked="false"
+            aria-label="Activar o desactivar alto contraste">
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
+        <div class="toggle-row">
+          <label for="s-bigfont-toggle" class="toggle-label">Letra grande</label>
+          <button id="s-bigfont-toggle" class="toggle-btn" role="switch" aria-checked="false"
+            aria-label="Activar o desactivar letra grande">
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
+        <div class="toggle-row">
+          <label for="s-dark-toggle" class="toggle-label">Modo oscuro</label>
+          <button id="s-dark-toggle" class="toggle-btn" role="switch" aria-checked="false"
+            aria-label="Activar o desactivar modo oscuro">
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
+        <div class="toggle-row">
+          <label for="s-doubletap-toggle" class="toggle-label">Doble toque para confirmar</label>
+          <button id="s-doubletap-toggle" class="toggle-btn" role="switch" aria-checked="false"
+            aria-label="Activar confirmación con doble toque">
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Guardar y borrar -->
+      <div class="settings-group">
+        <button id="btn-save-settings" class="btn-primary" aria-label="Guardar todos los ajustes">
+          Guardar ajustes
+        </button>
+        <button id="btn-clear-data" class="btn-danger" aria-label="Borrar todos los datos de la aplicación">
+          Borrar todos los datos
+        </button>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Bottom Navigation -->
+  <nav class="bottom-nav" role="navigation" aria-label="Navegación principal">
+    <button class="nav-btn active" data-view="inicio" aria-label="Inicio" aria-current="page">
+      <span class="nav-icon" aria-hidden="true">🏠</span>
+      <span class="nav-label">Inicio</span>
+    </button>
+    <button class="nav-btn" data-view="medicinas" aria-label="Medicamentos" aria-current="false">
+      <span class="nav-icon" aria-hidden="true">💊</span>
+      <span class="nav-label">Medicinas</span>
+    </button>
+    <button class="nav-btn nav-sos" data-view="sos" aria-label="Emergencia SOS" aria-current="false">
+      <span class="nav-icon" aria-hidden="true">🆘</span>
+      <span class="nav-label">SOS</span>
+    </button>
+    <button class="nav-btn" data-view="historial" aria-label="Historial" aria-current="false">
+      <span class="nav-icon" aria-hidden="true">📋</span>
+      <span class="nav-label">Historial</span>
+    </button>
+    <button class="nav-btn" data-view="ajustes" aria-label="Ajustes" aria-current="false">
+      <span class="nav-icon" aria-hidden="true">⚙️</span>
+      <span class="nav-label">Ajustes</span>
+    </button>
+  </nav>
+
+  <!-- Alarm Modal -->
+  <div id="alarm-modal" class="modal-overlay" hidden role="alertdialog" aria-modal="true"
+    aria-labelledby="alarm-modal-title" aria-describedby="alarm-modal-body">
+    <div class="modal-box">
+      <div class="modal-alarm-icon" aria-hidden="true">💊</div>
+      <h2 id="alarm-modal-title" class="modal-title">Hora de su medicina</h2>
+      <p id="alarm-modal-body" class="modal-body">Mensaje</p>
+      <p id="alarm-modal-notes" class="modal-notes"></p>
+      <div class="modal-actions">
+        <button id="btn-modal-taken" class="btn-primary" aria-label="Confirmar que tomé el medicamento">
+          ✅ Tomado
+        </button>
+        <button id="btn-modal-snooze" class="btn-secondary" aria-label="Posponer la alarma">
+          ⏰ Posponer
+        </button>
+        <button id="btn-modal-skip" class="btn-ghost" aria-label="Omitir esta dosis">
+          Omitir dosis
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
 </body>
 
 </html>

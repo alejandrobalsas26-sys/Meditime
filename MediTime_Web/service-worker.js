@@ -1,49 +1,74 @@
-const CACHE_NAME = 'meditime-v1';
-const ASSETS_TO_CACHE = [
-    './',
-    './index.html',
-    './styles.css',
-    './app.js',
-    './manifest.json'
+const CACHE_NAME = 'meditime-v3';
+
+const PRECACHE_URLS = [
+  'index.html',
+  'styles.css',
+  'app.js',
+  'manifest.json',
+  'assets/confirmacion.wav',
+  'assets/error.wav',
+  'assets/normal.wav',
+  'assets/prealerta.wav',
+  'assets/suave.wav',
+  'assets/urgente.wav'
 ];
 
-// Install Event
-self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then((cache) => {
-                console.log('Opened cache');
-                return cache.addAll(ASSETS_TO_CACHE);
-            })
-    );
+// ── Install: precache all listed assets ───────────────────────────────────────
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => {
+      return Promise.allSettled(
+        PRECACHE_URLS.map(url =>
+          cache.add(url).catch(() => {
+            // Asset may not exist yet; skip without aborting install
+          })
+        )
+      );
+    }).then(() => self.skipWaiting())
+  );
 });
 
-// Fetch Event
-self.addEventListener('fetch', (event) => {
-    event.respondWith(
-        caches.match(event.request)
-            .then((response) => {
-                // Cache hit - return response
-                if (response) {
-                    return response;
-                }
-                return fetch(event.request);
-            })
-    );
+// ── Activate: purge every cache whose name is not meditime-v3 ─────────────────
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames
+          .filter(name => name !== CACHE_NAME)
+          .map(name => caches.delete(name))
+      );
+    }).then(() => self.clients.claim())
+  );
 });
 
-// Activate Event
-self.addEventListener('activate', (event) => {
-    const cacheWhitelist = [CACHE_NAME];
-    event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cacheName) => {
-                    if (cacheWhitelist.indexOf(cacheName) === -1) {
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        })
-    );
+// ── Fetch: cache-first, fall back to network ──────────────────────────────────
+self.addEventListener('fetch', event => {
+  // Only handle GET requests with http/https scheme
+  if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
+  event.respondWith(
+    caches.match(event.request).then(cached => {
+      if (cached) return cached;
+
+      return fetch(event.request).then(networkResponse => {
+        // Cache valid same-origin responses and audio assets
+        if (
+          networkResponse.ok &&
+          (url.origin === self.location.origin ||
+            event.request.destination === 'audio')
+        ) {
+          const toCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, toCache));
+        }
+        return networkResponse;
+      }).catch(() => {
+        // Offline fallback for navigate requests: serve cached index.html
+        if (event.request.destination === 'document') {
+          return caches.match('index.html');
+        }
+      });
+    })
+  );
 });

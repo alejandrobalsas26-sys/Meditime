@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MediTime PRO</string>
+    <string name="title_activity_main">MediTime PRO</string>
+    <string name="package_name">com.meditime.pro</string>
+    <string name="custom_url_scheme">com.meditime.pro</string>
+</resources>

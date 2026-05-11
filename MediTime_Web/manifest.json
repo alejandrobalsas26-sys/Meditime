@@ -1,21 +1,102 @@
 {
   "name": "MediTime PRO",
   "short_name": "MediTime",
-  "start_url": "./index.html",
+  "lang": "es",
+  "dir": "ltr",
+  "description": "Recordatorio de medicamentos con SOS de emergencia. Accesible para adultos mayores.",
   "display": "standalone",
-  "background_color": "#f5f5f5",
-  "theme_color": "#4CAF50",
-  "description": "Asistente de medicación con accesibilidad",
+  "orientation": "portrait",
+  "start_url": "./index.html",
+  "scope": "./",
+  "theme_color": "#0D9488",
+  "background_color": "#F0FDFA",
+  "categories": ["medical", "health", "lifestyle"],
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3063/3063176.png",
-      "sizes": "192x192",
-      "type": "image/png"
+      "src": "icons/icon-48.png",
+      "sizes": "48x48",
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3063/3063176.png",
+      "src": "icons/icon-72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {},
+    {}
+  ],
+  "shortcuts": [
+    {
+      "name": "Agregar medicina",
+      "short_name": "Agregar",
+      "description": "Abrir el formulario para registrar un nuevo medicamento",
+      "url": "./index.html?shortcut=add",
+      "icons": [
+        {
+          "src": "icons/icon-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "SOS",
+      "short_name": "SOS",
+      "description": "Abrir la pantalla de emergencia SOS",
+      "url": "./index.html?shortcut=sos",
+      "icons": [
+        {
+          "src": "icons/icon-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }
