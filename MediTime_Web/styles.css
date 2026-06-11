@@ -18,8 +18,8 @@
   --bg-nav:         rgba(255,255,255,0.96);
 
   --text:           #134E4A;
-  --text-secondary: #4B7A78;
-  --text-muted:     #7AADA9;
+  --text-secondary: #4A7873;
+  --text-muted:     #4A7E7A;
 
   --danger:         #DC2626;
   --danger-light:   #FEE2E2;
@@ -290,8 +290,8 @@ body {
 /* ── Donut ring ── */
 .donut-container {
   position: relative;
-  width: clamp(140px, 40vw, 180px);
-  height: clamp(140px, 40vw, 180px);
+  width: clamp(160px, 44vw, 200px);
+  height: clamp(160px, 44vw, 200px);
   margin: 0 auto 20px;
 }
 .donut-svg {
@@ -301,13 +301,13 @@ body {
 }
 .donut-track {
   fill: none;
-  stroke: var(--border);
-  stroke-width: 10;
+  stroke: rgba(13, 148, 136, 0.28);
+  stroke-width: 12;
 }
 .donut-bar {
   fill: none;
   stroke: var(--primary);
-  stroke-width: 10;
+  stroke-width: 12;
   stroke-linecap: round;
   transition: stroke-dashoffset 0.7s cubic-bezier(0.34,1.56,0.64,1);
 }
@@ -321,7 +321,7 @@ body {
   gap: 2px;
 }
 .donut-percent {
-  font-size: clamp(1.4rem, 6vw, 2rem);
+  font-size: clamp(1.75rem, 7vw, 2.5rem);
   font-weight: 700;
   color: var(--primary);
   line-height: 1;
@@ -1150,6 +1150,15 @@ input[type="radio"].sr-only {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+/* Jerarquía de acciones del modal: principal domina, terciaria se subordina */
+.modal-actions .btn-primary {
+  font-size: 1.15rem;
+  padding: 18px 20px;
+}
+.modal-actions .btn-ghost {
+  font-size: 0.9rem;
+  margin-top: 2px;
 }
 
 /* ═══════════════════════════════════════════════════════════
