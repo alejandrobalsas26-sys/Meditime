@@ -1078,22 +1078,34 @@ input[type="radio"].sr-only {
   position: relative;
   transition: color 0.2s;
 }
-.nav-btn.active { color: var(--primary); }
-.nav-btn.active::before {
+/* Píldora de fondo detrás del ítem (pintada solo cuando está activo) */
+.nav-btn::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 20%;
-  right: 20%;
-  height: 3px;
-  background: var(--primary);
-  border-radius: 0 0 4px 4px;
+  top: 6px;
+  bottom: 6px;
+  left: 8px;
+  right: 8px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  transition: background 0.2s, transform 0.2s;
+  z-index: 0;
 }
+/* El icono y la etiqueta van por encima de la píldora */
+.nav-icon, .nav-label { position: relative; z-index: 1; }
+
+.nav-btn.active { color: var(--primary); }
+.nav-btn.active::before { background: var(--primary-muted); }
+/* Refuerzo sin depender solo del color: icono más grande + etiqueta en negrita */
+.nav-btn.active .nav-icon  { transform: scale(1.12); }
+.nav-btn.active .nav-label { font-weight: 800; }
+
 .nav-btn.nav-sos { color: var(--danger); }
 .nav-btn.nav-sos.active { color: var(--danger); }
-.nav-btn.nav-sos.active::before { background: var(--danger); }
-.nav-icon { font-size: 1.35rem; line-height: 1; }
-.nav-label { font-size: 0.65rem; font-weight: 600; letter-spacing: 0.2px; }
+.nav-btn.nav-sos.active::before { background: rgba(220,38,38,0.12); }
+
+.nav-icon  { font-size: 1.4rem; line-height: 1; transition: transform 0.2s; }
+.nav-label { font-size: 0.74rem; font-weight: 600; letter-spacing: 0.2px; }
 
 /* ═══════════════════════════════════════════════════════════
    ALARM MODAL

@@ -384,7 +384,9 @@ function navigateTo(view) {
   if (view === 'ajustes')   { populateSettings(); }
 
   const viewNames = { inicio:'Inicio', medicinas:'Medicamentos', sos:'Emergencia', historial:'Historial', ajustes:'Ajustes' };
-  speak('Sección ' + (viewNames[view] || view));
+  speak(view === 'historial'
+    ? historySummarySpeech()
+    : 'Sección ' + (viewNames[view] || view));
 }
 
 // ══════════════════════════════════════════════════════════
@@ -815,6 +817,7 @@ function openAddForm() {
   clearForm();
   renderTimesInForm();
   showFormPanel();
+  speak('Agregar medicamento. Completa el formulario.');
 }
 
 function openEditForm(id) {
@@ -845,6 +848,7 @@ function openEditForm(id) {
 
   renderTimesInForm();
   showFormPanel();
+  speak('Editando ' + med.name + '.');
 }
 
 function showFormPanel() {
@@ -909,8 +913,10 @@ function renderTimesInForm() {
 
 function addTimeToForm() {
   const now = new Date();
-  formTimes.push(pad(now.getHours()) + ':' + pad(now.getMinutes()));
+  const t = pad(now.getHours()) + ':' + pad(now.getMinutes());
+  formTimes.push(t);
   renderTimesInForm();
+  speak('Horario agregado: ' + t + '.');
 }
 
 function saveMedicineForm(e) {
@@ -1026,7 +1032,9 @@ function getGPS() {
         2: 'Señal GPS no disponible.',
         3: 'Tiempo de espera agotado.',
       };
-      box.textContent = (msgs[err.code] || 'Error GPS desconocido.') + ' Active la ubicación del dispositivo.';
+      const msg = (msgs[err.code] || 'Error GPS desconocido.') + ' Active la ubicación del dispositivo.';
+      box.textContent = msg;
+      speak(msg);
     },
     { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
   );
@@ -1046,6 +1054,8 @@ function startSOSCountdown() {
   sosTimerID = setInterval(() => {
     count--;
     updateUI();
+    // Cuenta atrás hablada en la recta final (el "0" lo anuncia makeSOSCall)
+    if (count >= 1 && count <= 3) speak(String(count));
     if (count <= 0) {
       clearInterval(sosTimerID);
       makeSOSCall();
@@ -1085,6 +1095,21 @@ function clearSOS() {
 function renderHistory() {
   renderHistoryStats();
   renderHistoryList();
+}
+
+// Texto TTS del resumen de adherencia, anunciado al entrar al Historial.
+// Devuelve la frase completa (incluido "Sección Historial") para que
+// navigateTo la locute en un solo anuncio, sin cortes.
+function historySummarySpeech() {
+  const taken   = state.history.filter(e => e.action === 'taken').length;
+  const skipped = state.history.filter(e => e.action === 'skipped').length;
+  const snoozed = state.history.filter(e => e.action === 'snoozed').length;
+
+  if (taken + skipped + snoozed === 0) {
+    return 'Sección Historial. Aún no hay registros.';
+  }
+  return 'Sección Historial. En los últimos ' + HISTORY_DAYS + ' días: ' +
+         taken + ' tomadas, ' + skipped + ' omitidas, ' + snoozed + ' pospuestas.';
 }
 
 function renderHistoryStats() {
@@ -1445,7 +1470,7 @@ function wireEvents() {
 
   // Cancel form
   const btnCancel = document.getElementById('btn-cancel-form');
-  if (btnCancel) btnCancel.addEventListener('click', hideFormPanel);
+  if (btnCancel) btnCancel.addEventListener('click', () => { speak('Formulario cancelado.'); hideFormPanel(); });
 
   // Add time button
   const btnAddTime = document.getElementById('btn-add-time');
@@ -1474,13 +1499,28 @@ function wireEvents() {
   });
 
   // Settings — toggle buttons
-  const toggleIds = ['s-tts-toggle','s-contrast-toggle','s-bigfont-toggle','s-dark-toggle','s-doubletap-toggle','s-notif-toggle'];
-  toggleIds.forEach(id => {
+  const toggleSpeech = {
+    's-tts-toggle':       { on: 'Voz activada.',             off: 'Voz desactivada.' },
+    's-contrast-toggle':  { on: 'Alto contraste activado.',  off: 'Alto contraste desactivado.' },
+    's-bigfont-toggle':   { on: 'Letra grande activada.',    off: 'Letra grande desactivada.' },
+    's-dark-toggle':      { on: 'Modo oscuro activado.',     off: 'Modo oscuro desactivado.' },
+    's-doubletap-toggle': { on: 'Doble toque activado.',     off: 'Doble toque desactivado.' },
+    's-notif-toggle':     { on: 'Notificaciones activadas.', off: 'Notificaciones desactivadas.' },
+  };
+  Object.keys(toggleSpeech).forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     el.addEventListener('click', () => {
-      const cur = el.getAttribute('aria-checked') === 'true';
-      el.setAttribute('aria-checked', cur ? 'false' : 'true');
+      const next = el.getAttribute('aria-checked') !== 'true';
+      el.setAttribute('aria-checked', next ? 'true' : 'false');
+      // El toggle de Voz se aplica al instante para que su propio anuncio se oiga:
+      // al activar, encender ANTES de hablar; al desactivar, hablar ANTES de apagar.
+      if (id === 's-tts-toggle' && next) state.settings.ttsEnabled = true;
+      speak(next ? toggleSpeech[id].on : toggleSpeech[id].off);
+      if (id === 's-tts-toggle') {
+        state.settings.ttsEnabled = next;
+        applySettings(); // sincroniza el aria-pressed del botón de Voz de la barra superior
+      }
     });
   });
 
