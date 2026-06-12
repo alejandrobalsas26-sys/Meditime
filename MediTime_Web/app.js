@@ -10,6 +10,7 @@
 // ══════════════════════════════════════════════════════════
 const STORAGE_KEY  = 'meditime_v3';
 const REMINDER_INTERVAL_MS = 30_000;
+const SOS_HOLD_MS  = 2000;     // mantener pulsado el botón SOS para activarlo
 const HISTORY_DAYS = 30;
 const TAG_COLORS = ['#0D9488','#7C3AED','#D97706','#DC2626','#16A34A','#0EA5E9','#EC4899','#64748B'];
 
@@ -139,6 +140,7 @@ let state = {
 
 // Runtime-only (never persisted)
 let sosTimerID     = null;
+let sosHoldTimer   = null;     // timer de pulsación larga del botón SOS
 let reminderTimer  = null;
 let lastAlertKey   = '';       // "medId|HH:MM" prevents duplicate alerts
 let doubleTapState = { el: null, ts: 0 };
@@ -986,6 +988,59 @@ function deleteMedicine(id) {
 // ══════════════════════════════════════════════════════════
 // SOS VIEW
 // ══════════════════════════════════════════════════════════
+// El SOS solo se activa manteniendo pulsado el botón SOS_HOLD_MS.
+// Un toque corto muestra una pista en vez de iniciar la cuenta atrás,
+// para evitar llamadas de emergencia accidentales.
+function setupSOSLongPress() {
+  const btn = document.querySelector('.nav-btn.nav-sos');
+  if (!btn) return;
+
+  const startHold = () => {
+    if (sosHoldTimer) return;
+    btn.classList.add('holding');
+    sosHoldTimer = setTimeout(() => {
+      sosHoldTimer = null;
+      btn.classList.remove('holding');
+      navigateTo('sos');
+    }, SOS_HOLD_MS);
+  };
+
+  const cancelHold = (showHint) => {
+    if (!sosHoldTimer) return;          // ya activado o nunca iniciado
+    clearTimeout(sosHoldTimer);
+    sosHoldTimer = null;
+    btn.classList.remove('holding');
+    if (showHint) {
+      showToast('Mantén pulsado SOS 2 segundos para activar', 'warning');
+      speak('Para activar la emergencia, mantén pulsado el botón SOS durante dos segundos.');
+    }
+  };
+
+  // Táctil y ratón
+  btn.addEventListener('pointerdown',   e => { e.preventDefault(); startHold(); });
+  btn.addEventListener('pointerup',     () => cancelHold(true));
+  btn.addEventListener('pointerleave',  () => cancelHold(false));
+  btn.addEventListener('pointercancel', () => cancelHold(false));
+
+  // La pulsación larga en Android dispara el menú contextual: bloquearlo
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+
+  // Teclado: mantener Enter o Espacio los 2 segundos
+  btn.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
+      e.preventDefault();
+      startHold();
+    }
+  });
+  btn.addEventListener('keyup', e => {
+    if (e.key === 'Enter' || e.key === ' ') cancelHold(true);
+  });
+  btn.addEventListener('blur', () => cancelHold(false));
+
+  // El click sintético posterior al pointerup no debe navegar
+  btn.addEventListener('click', e => e.preventDefault());
+}
+
 function initSOS() {
   clearSOS();
   getGPS();
@@ -1373,7 +1428,7 @@ function setupDoubleTap() {
     if (!state.settings.doubleTap) return;
 
     // Never intercept toggles, checkboxes, or their labels
-    if (e.target.closest('#s-doubletap-toggle, #s-tts-toggle, input[type="checkbox"]')) return;
+    if (e.target.closest('#s-doubletap-toggle, #s-tts-toggle, input[type="checkbox"], .nav-sos')) return;
 
     const target = e.target.closest('button, a[href], input[type="submit"]');
     if (!target) return;
@@ -1448,9 +1503,12 @@ function clearElement(el) {
 // ══════════════════════════════════════════════════════════
 function wireEvents() {
   // Bottom nav
+  // El botón SOS se excluye: requiere pulsación larga (setupSOSLongPress)
   document.querySelectorAll('.nav-btn').forEach(btn => {
+    if (btn.classList.contains('nav-sos')) return;
     btn.addEventListener('click', () => navigateTo(btn.dataset.view));
   });
+  setupSOSLongPress();
 
   // TTS toggle in top bar
   const ttsBtn = document.getElementById('btn-tts');
@@ -1499,27 +1557,44 @@ function wireEvents() {
   });
 
   // Settings — toggle buttons
-  const toggleSpeech = {
-    's-tts-toggle':       { on: 'Voz activada.',             off: 'Voz desactivada.' },
-    's-contrast-toggle':  { on: 'Alto contraste activado.',  off: 'Alto contraste desactivado.' },
-    's-bigfont-toggle':   { on: 'Letra grande activada.',    off: 'Letra grande desactivada.' },
-    's-dark-toggle':      { on: 'Modo oscuro activado.',     off: 'Modo oscuro desactivado.' },
-    's-doubletap-toggle': { on: 'Doble toque activado.',     off: 'Doble toque desactivado.' },
-    's-notif-toggle':     { on: 'Notificaciones activadas.', off: 'Notificaciones desactivadas.' },
+  // Cada toggle se aplica y se guarda AL INSTANTE: el usuario ve el efecto
+  // (modo oscuro, letra grande…) en el momento del toque, sin "Guardar ajustes".
+  const toggleConfig = {
+    's-tts-toggle':       { key: 'ttsEnabled',   on: 'Voz activada.',             off: 'Voz desactivada.' },
+    's-contrast-toggle':  { key: 'highContrast', on: 'Alto contraste activado.',  off: 'Alto contraste desactivado.' },
+    's-bigfont-toggle':   { key: 'bigFont',      on: 'Letra grande activada.',    off: 'Letra grande desactivada.' },
+    's-dark-toggle':      { key: 'darkMode',     on: 'Modo oscuro activado.',     off: 'Modo oscuro desactivado.' },
+    's-doubletap-toggle': { key: 'doubleTap',    on: 'Doble toque activado.',     off: 'Doble toque desactivado.' },
+    's-notif-toggle':     { key: 'notifEnabled', on: 'Notificaciones activadas.', off: 'Notificaciones desactivadas.' },
   };
-  Object.keys(toggleSpeech).forEach(id => {
+  Object.keys(toggleConfig).forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     el.addEventListener('click', () => {
+      const cfg  = toggleConfig[id];
       const next = el.getAttribute('aria-checked') !== 'true';
       el.setAttribute('aria-checked', next ? 'true' : 'false');
-      // El toggle de Voz se aplica al instante para que su propio anuncio se oiga:
-      // al activar, encender ANTES de hablar; al desactivar, hablar ANTES de apagar.
-      if (id === 's-tts-toggle' && next) state.settings.ttsEnabled = true;
-      speak(next ? toggleSpeech[id].on : toggleSpeech[id].off);
-      if (id === 's-tts-toggle') {
-        state.settings.ttsEnabled = next;
-        applySettings(); // sincroniza el aria-pressed del botón de Voz de la barra superior
+
+      // La Voz se enciende ANTES de hablar para que su propio anuncio se oiga;
+      // al desactivarla, se habla primero y se apaga después.
+      if (cfg.key === 'ttsEnabled' && next) state.settings.ttsEnabled = true;
+      speak(next ? cfg.on : cfg.off);
+
+      state.settings[cfg.key] = next;
+      applySettings();
+      saveState();
+
+      // Al activar notificaciones, pedir el permiso en ese momento
+      if (cfg.key === 'notifEnabled' && next &&
+          'Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then(perm => {
+          if (perm !== 'granted') {
+            state.settings.notifEnabled = false;
+            setToggle('s-notif-toggle', false);
+            saveState();
+            showToast('Permiso de notificaciones denegado', 'error');
+          }
+        });
       }
     });
   });
