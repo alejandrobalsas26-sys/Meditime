@@ -12,6 +12,8 @@ const STORAGE_KEY  = 'meditime_v3';
 const REMINDER_INTERVAL_MS = 30_000;
 const SOS_HOLD_MS  = 2000;     // mantener pulsado el botón SOS para activarlo
 const HISTORY_DAYS = 30;
+const ALARM_GRACE_MS   = 120 * 60_000; // una dosis se sigue avisando hasta 2 h tarde
+const ALARM_REALERT_MS = 5 * 60_000;   // re-aviso cada 5 min mientras no se confirme
 const TAG_COLORS = ['#0D9488','#7C3AED','#D97706','#DC2626','#16A34A','#0EA5E9','#EC4899','#64748B'];
 
 const FREQ_LABELS = {
@@ -29,6 +31,7 @@ const FREQ_LABELS = {
 // ══════════════════════════════════════════════════════════
 let _BiometricAuth = null;   // capacitor-native-biometric ≥4
 let _SecureStorage = null;   // capacitor-secure-storage-plugin ^0.10
+let _LocalNotifications = null; // @capacitor/local-notifications ^6
 
 function _resolvePlugins() {
   try {
@@ -40,6 +43,7 @@ function _resolvePlugins() {
       const P        = window.Capacitor.Plugins;
       _BiometricAuth = P.NativeBiometric      || null;
       _SecureStorage = P.SecureStoragePlugin  || null;
+      _LocalNotifications = P.LocalNotifications || null;
     }
   } catch (_) {}
 }
@@ -142,7 +146,8 @@ let state = {
 let sosTimerID     = null;
 let sosHoldTimer   = null;     // timer de pulsación larga del botón SOS
 let reminderTimer  = null;
-let lastAlertKey   = '';       // "medId|HH:MM" prevents duplicate alerts
+let alarmAlerts     = {};      // {"medId|HH:MM": ts del último aviso}
+let alarmAlertsDate = '';      // día al que pertenecen esos avisos
 let doubleTapState = { el: null, ts: 0 };
 let currentView    = 'inicio';
 let editMedId      = null;     // null = new, string = editing existing
@@ -353,6 +358,11 @@ const VIEWS = ['inicio','medicinas','sos','historial','ajustes'];
 
 function navigateTo(view) {
   if (!VIEWS.includes(view)) return;
+
+  // Salir de la pantalla SOS por cualquier vía detiene la cuenta atrás:
+  // sin esto, la llamada de emergencia se haría aunque el usuario ya
+  // hubiera cambiado a otra sección con la barra de navegación.
+  if (currentView === 'sos' && view !== 'sos') clearSOS();
 
   // Hide all views
   VIEWS.forEach(v => {
@@ -586,32 +596,111 @@ function startReminderLoop() {
 
 function checkReminders() {
   resetDailyConfirmed();
-  const now    = new Date();
-  const nowStr = pad(now.getHours()) + ':' + pad(now.getMinutes());
-  const nowTs  = now.getTime();
 
-  getMedicinesForToday().forEach(med => {
-    med.times.forEach(t => {
-      if (med.confirmedToday[t]) return;
+  const today = todayStr();
+  if (alarmAlertsDate !== today) { alarmAlerts = {}; alarmAlertsDate = today; }
 
-      // Snooze check
-      const snoozedUntil = med.snoozedUntil && med.snoozedUntil[t];
-      if (snoozedUntil && nowTs < snoozedUntil) return;
+  const nowTs = Date.now();
 
-      if (t === nowStr) {
+  // Si ya hay una alarma en pantalla no se tapa con otra:
+  // la siguiente saldrá en cuanto se responda la actual.
+  const modal = document.getElementById('alarm-modal');
+  if (!modal || modal.hidden) {
+    let next = null; // la dosis vencida más antigua pendiente de aviso
+
+    getMedicinesForToday().forEach(med => {
+      med.times.forEach(t => {
+        if (med.confirmedToday[t]) return;
+
+        const [h, m] = t.split(':').map(Number);
+        const at = new Date();
+        at.setHours(h, m, 0, 0);
+
+        // Si está pospuesta, vence al acabar el aplazamiento
+        const snoozedUntil = med.snoozedUntil && med.snoozedUntil[t];
+        const dueTs = snoozedUntil || at.getTime();
+
+        const late = nowTs - dueTs;
+        if (late < 0 || late > ALARM_GRACE_MS) return; // aún no toca o ya muy tarde
+
         const key = med.id + '|' + t;
-        if (lastAlertKey === key) return; // already alerted this minute
-        lastAlertKey = key;
-        triggerAlarm(med, t);
-      }
+        if (nowTs - (alarmAlerts[key] || 0) < ALARM_REALERT_MS) return; // avisada hace poco
+
+        if (!next || dueTs < next.dueTs) next = { med, time: t, dueTs, key };
+      });
     });
-  });
+
+    if (next) {
+      alarmAlerts[next.key] = nowTs;
+      triggerAlarm(next.med, next.time);
+    }
+  }
 
   // Also update dashboard if on inicio view
   if (currentView === 'inicio') renderInicio();
 }
 
 function pad(n) { return String(n).padStart(2, '0'); }
+
+// ══════════════════════════════════════════════════════════
+// NATIVE NOTIFICATIONS (suenan con la app cerrada)
+// Se reprograman completas tras cada cambio en los medicamentos.
+// ══════════════════════════════════════════════════════════
+async function syncNativeNotifications() {
+  if (!_LocalNotifications) return;
+  try {
+    let perm = await _LocalNotifications.checkPermissions();
+    if (perm.display !== 'granted') {
+      perm = await _LocalNotifications.requestPermissions();
+      if (perm.display !== 'granted') return;
+    }
+
+    const pending = await _LocalNotifications.getPending();
+    if (pending && pending.notifications && pending.notifications.length) {
+      await _LocalNotifications.cancel({
+        notifications: pending.notifications.map(n => ({ id: n.id })),
+      });
+    }
+
+    // El plugin numera los días: 1=domingo … 7=sábado
+    const WEEKDAYS = { semana: [2, 3, 4, 5, 6], finde: [1, 7] };
+    const toSchedule = [];
+    let nextId = 1;
+
+    state.medicines.forEach(med => {
+      med.times.forEach(t => {
+        const [hour, minute] = t.split(':').map(Number);
+        const body = med.name + (med.dose ? ' · ' + med.dose : '') + ' a las ' + t;
+        const days = WEEKDAYS[med.frequency];
+        if (days) {
+          days.forEach(weekday => {
+            toSchedule.push({
+              id: nextId++,
+              title: '💊 MediTime — Hora de su medicina',
+              body,
+              schedule: { on: { weekday, hour, minute }, allowWhileIdle: true },
+            });
+          });
+        } else {
+          // 'diario' y 'alterno' se programan a diario; en los días que no
+          // tocan ('alterno') la app abierta no muestra el modal
+          toSchedule.push({
+            id: nextId++,
+            title: '💊 MediTime — Hora de su medicina',
+            body,
+            schedule: { on: { hour, minute }, allowWhileIdle: true },
+          });
+        }
+      });
+    });
+
+    if (toSchedule.length) {
+      await _LocalNotifications.schedule({ notifications: toSchedule });
+    }
+  } catch (_) {
+    // Sin permiso o sin plugin: siguen funcionando los recordatorios web
+  }
+}
 
 // ══════════════════════════════════════════════════════════
 // ALARM TRIGGER
@@ -625,7 +714,7 @@ function triggerAlarm(med, time) {
   showAlarmModal(med, time);
 
   // Web Notification
-  if (state.settings.notifEnabled && Notification.permission === 'granted') {
+  if (state.settings.notifEnabled && 'Notification' in window && Notification.permission === 'granted') {
     try {
       new Notification('💊 MediTime — Hora de su medicina', {
         body: med.name + (med.dose ? ' · ' + med.dose : '') + ' a las ' + time,
@@ -690,6 +779,17 @@ function snoozeDose() {
   state.history.unshift(createHistoryEntry(alarmModalMed.id, alarmModalMed.name, alarmModalTime, 'snoozed'));
   pruneHistory();
   saveState();
+  // Aviso nativo único al vencer el aplazamiento (suena con app cerrada)
+  if (_LocalNotifications) {
+    _LocalNotifications.schedule({
+      notifications: [{
+        id:    900000 + Math.floor(Math.random() * 90000),
+        title: '💊 MediTime — Dosis pospuesta',
+        body:  alarmModalMed.name + (alarmModalMed.dose ? ' · ' + alarmModalMed.dose : ''),
+        schedule: { at: new Date(Date.now() + minutes * 60_000), allowWhileIdle: true },
+      }],
+    }).catch(() => {});
+  }
   playSound('suave');
   speak('Alarma pospuesta ' + minutes + ' minutos.');
   showToast('Pospuesto ' + minutes + ' min', 'warning');
@@ -967,6 +1067,7 @@ function saveMedicineForm(e) {
   }
 
   saveState();
+  syncNativeNotifications();
   editMedId = null;
   hideFormPanel();
   renderMedicineList();
@@ -978,6 +1079,7 @@ function deleteMedicine(id) {
   if (!confirm('¿Eliminar ' + med.name + '? Esta acción no se puede deshacer.')) return;
   state.medicines = state.medicines.filter(m => m.id !== id);
   saveState();
+  syncNativeNotifications();
   playSound('error');
   showToast(med.name + ' eliminado', 'warning');
   speak(med.name + ' eliminado.');
@@ -1119,7 +1221,7 @@ function startSOSCountdown() {
 }
 
 function makeSOSCall() {
-  const num = state.settings.sosNumber || '911';
+  const num = sanitizePhone(state.settings.sosNumber) || '911';
   const statusEl = document.getElementById('sos-status');
   if (statusEl) statusEl.textContent = '¡Marcando ' + num + '!';
   speak('Llamando a emergencias ahora.');
@@ -1293,7 +1395,7 @@ function saveSettings() {
   state.profile.age         = sanitize(document.getElementById('s-patient-age')?.value   || '');
   state.profile.doctorName  = sanitize(document.getElementById('s-doctor-name')?.value  || '');
   state.profile.doctorPhone = sanitize(document.getElementById('s-doctor-phone')?.value || '');
-  state.settings.sosNumber  = sanitize(document.getElementById('s-sos-number')?.value   || '911');
+  state.settings.sosNumber  = sanitizePhone(document.getElementById('s-sos-number')?.value) || '911';
   state.settings.snoozeMinutes = parseInt(document.getElementById('s-snooze-time')?.value || '10', 10);
 
   state.settings.ttsEnabled   = getToggle('s-tts-toggle');
@@ -1494,6 +1596,11 @@ function sanitize(str) {
   return str.replace(/[<>&"'`]/g, '').trim();
 }
 
+function sanitizePhone(str) {
+  // Solo caracteres que un marcador telefónico entiende
+  return String(str || '').replace(/[^\d+*#]/g, '');
+}
+
 function clearElement(el) {
   while (el.firstChild) el.removeChild(el.firstChild);
 }
@@ -1553,7 +1660,7 @@ function wireEvents() {
   // SOS call button — update href dynamically
   const sosCallBtn = document.getElementById('sos-call-btn');
   if (sosCallBtn) sosCallBtn.addEventListener('click', () => {
-    sosCallBtn.href = 'tel:' + (state.settings.sosNumber || '911');
+    sosCallBtn.href = 'tel:' + (sanitizePhone(state.settings.sosNumber) || '911');
   });
 
   // Settings — toggle buttons
@@ -1585,7 +1692,9 @@ function wireEvents() {
       saveState();
 
       // Al activar notificaciones, pedir el permiso en ese momento
-      if (cfg.key === 'notifEnabled' && next &&
+      if (cfg.key === 'notifEnabled' && next && _LocalNotifications) {
+        syncNativeNotifications();
+      } else if (cfg.key === 'notifEnabled' && next &&
           'Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission().then(perm => {
           if (perm !== 'granted') {
@@ -1640,6 +1749,7 @@ async function init() {
   resetDailyConfirmed();
   renderInicio();
   startReminderLoop();
+  syncNativeNotifications();
 
   if ('Notification' in window && state.settings.notifEnabled) {
     Notification.requestPermission();
