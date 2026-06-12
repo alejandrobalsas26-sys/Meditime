@@ -1,10 +1,12 @@
-const CACHE_NAME = 'meditime-v4';
+const CACHE_NAME = 'meditime-v5';
 
 const PRECACHE_URLS = [
   'index.html',
   'styles.css',
   'app.js',
   'manifest.json',
+  'fonts/dm-sans-latin.woff2',
+  'fonts/dm-sans-latin-ext.woff2',
   'assets/confirmacion.wav',
   'assets/error.wav',
   'assets/normal.wav',
@@ -28,7 +30,7 @@ self.addEventListener('install', event => {
   );
 });
 
-// ── Activate: purge every cache whose name is not meditime-v3 ─────────────────
+// ── Activate: purge every cache whose name is not the current one ─────────────
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(cacheNames => {

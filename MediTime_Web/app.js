@@ -325,6 +325,21 @@ async function playSound(name) {
 }
 
 // ══════════════════════════════════════════════════════════
+// HAPTICS (navigator.vibrate — sin soporte falla en silencio)
+// ══════════════════════════════════════════════════════════
+const VIBRATE_PATTERNS = {
+  confirm: 60,                          // toque corto: dosis confirmada
+  alarm:   [300, 150, 300],             // alarma normal
+  urgent:  [500, 200, 500, 200, 500],   // alarma urgente: patrón largo
+  sos:     [400, 150, 400, 150, 400],   // emergencia activada
+};
+
+function vibrate(kind) {
+  if (!('vibrate' in navigator)) return;
+  try { navigator.vibrate(VIBRATE_PATTERNS[kind] || 0); } catch (_) {}
+}
+
+// ══════════════════════════════════════════════════════════
 // TTS (Web Speech API)
 // ══════════════════════════════════════════════════════════
 function speak(text) {
@@ -342,13 +357,31 @@ function speak(text) {
 // TOAST
 // ══════════════════════════════════════════════════════════
 let toastTimer = null;
-function showToast(msg, type /* 'success'|'error'|'warning' */ = '') {
+function showToast(msg, type /* 'success'|'error'|'warning' */ = '', action = null) {
   const el = document.getElementById('toast');
   if (!el) return;
-  el.textContent = msg;
+  clearElement(el);
+  el.appendChild(document.createTextNode(msg));
+
+  // Botón de acción opcional (p. ej. "Deshacer"): el toast dura 5 s
+  // en vez de 3.2 s para dar tiempo a pulsarlo.
+  if (action) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-action';
+    btn.textContent = action.label;
+    btn.setAttribute('aria-label', action.ariaLabel || action.label);
+    btn.addEventListener('click', () => {
+      clearTimeout(toastTimer);
+      el.classList.remove('show');
+      action.onAction();
+    });
+    el.appendChild(btn);
+  }
+
   el.className = 'toast' + (type ? ' ' + type : '') + ' show';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+  toastTimer = setTimeout(() => el.classList.remove('show'), action ? 5000 : 3200);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -708,6 +741,7 @@ async function syncNativeNotifications() {
 function triggerAlarm(med, time) {
   const soundName = med.priority === 'urgente' ? 'urgente' : 'normal';
   playSound(soundName);
+  vibrate(med.priority === 'urgente' ? 'urgent' : 'alarm');
 
   speak('Atención. Hora de tomar ' + med.name + '. ' + (med.dose || '') + '. ' + (med.notes || ''));
 
@@ -760,15 +794,37 @@ function closeAlarmModal() {
 
 function confirmDose() {
   if (!alarmModalMed || !alarmModalTime) return;
-  alarmModalMed.confirmedToday[alarmModalTime] = true;
-  state.history.unshift(createHistoryEntry(alarmModalMed.id, alarmModalMed.name, alarmModalTime, 'taken'));
+  const med   = alarmModalMed;
+  const time  = alarmModalTime;
+  const entry = createHistoryEntry(med.id, med.name, time, 'taken');
+
+  med.confirmedToday[time] = true;
+  state.history.unshift(entry);
   pruneHistory();
   saveState();
   playSound('confirmacion');
+  vibrate('confirm');
   speak('Excelente. Medicamento confirmado. Que se mejore.');
-  showToast('¡' + alarmModalMed.name + ' registrado!', 'success');
+  // Se guarda al instante (si la app se cierra, la toma no se pierde) y
+  // "Deshacer" revierte: quita la marca del día y el registro del historial.
+  showToast('¡' + med.name + ' registrado!', 'success', {
+    label:     'Deshacer',
+    ariaLabel: 'Deshacer la confirmación de ' + med.name,
+    onAction:  () => undoConfirmDose(med.id, time, entry.id),
+  });
   closeAlarmModal();
   if (currentView === 'inicio') renderInicio();
+}
+
+function undoConfirmDose(medId, time, entryId) {
+  const med = state.medicines.find(m => m.id === medId);
+  if (med && med.confirmedToday) delete med.confirmedToday[time];
+  state.history = state.history.filter(e => e.id !== entryId);
+  saveState();
+  speak('Confirmación deshecha. La alarma volverá a avisar.');
+  showToast('Confirmación deshecha', 'warning');
+  if (currentView === 'inicio')    renderInicio();
+  if (currentView === 'historial') renderHistory();
 }
 
 function snoozeDose() {
@@ -1145,6 +1201,7 @@ function setupSOSLongPress() {
 
 function initSOS() {
   clearSOS();
+  vibrate('sos');
   getGPS();
   startSOSCountdown();
   speak('Modo de emergencia activado. Obteniendo ubicación. Llame si necesita ayuda.');
@@ -1354,6 +1411,42 @@ function renderHistoryList() {
     row.appendChild(ts);
     container.appendChild(row);
   });
+}
+
+// ── Compartir con el médico (imprimir / guardar PDF) ──
+// Construye el encabezado del informe con textContent (sin innerHTML
+// con datos del usuario) y abre el diálogo nativo de impresión, desde
+// el que también se puede guardar como PDF y compartir.
+function buildPrintHeader() {
+  const header = document.getElementById('print-header');
+  if (!header) return;
+  clearElement(header);
+
+  const title = document.createElement('h1');
+  title.textContent = '💊 MediTime — Informe de medicación';
+  header.appendChild(title);
+
+  const lines = [];
+  if (state.profile.name) {
+    lines.push('Paciente: ' + state.profile.name +
+      (state.profile.age ? ' (' + state.profile.age + ' años)' : ''));
+  }
+  if (state.profile.doctorName) lines.push('Médico: ' + state.profile.doctorName);
+  lines.push('Periodo: últimos ' + HISTORY_DAYS + ' días');
+  lines.push('Generado: ' + new Date().toLocaleDateString('es',
+    { day: '2-digit', month: 'long', year: 'numeric' }));
+
+  lines.forEach(l => {
+    const p = document.createElement('p');
+    p.textContent = l;
+    header.appendChild(p);
+  });
+}
+
+function shareWithDoctor() {
+  buildPrintHeader();
+  speak('Abriendo el informe para compartir con su médico.');
+  window.print();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1720,6 +1813,10 @@ function wireEvents() {
   const btnAddContact = document.getElementById('btn-add-contact');
   if (btnAddContact) btnAddContact.addEventListener('click', addContact);
 
+  // Compartir historial con el médico
+  const btnShareDoctor = document.getElementById('btn-share-doctor');
+  if (btnShareDoctor) btnShareDoctor.addEventListener('click', shareWithDoctor);
+
   // Keyboard: close modal on Escape
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
@@ -1727,6 +1824,33 @@ function wireEvents() {
       if (modal && !modal.hidden) closeAlarmModal();
     }
   });
+}
+
+// ══════════════════════════════════════════════════════════
+// PWA SHORTCUTS (manifest.json → ?shortcut=add | ?shortcut=sos)
+// ══════════════════════════════════════════════════════════
+function handleShortcut() {
+  let action = null;
+  try {
+    action = new URLSearchParams(window.location.search).get('shortcut');
+  } catch (_) {}
+  if (!action) return;
+
+  // Quitar el parámetro de la URL: si el usuario recarga la app,
+  // no debe re-dispararse el SOS ni reabrirse el formulario.
+  try {
+    history.replaceState(null, '', window.location.pathname);
+  } catch (_) {}
+
+  if (action === 'add') {
+    navigateTo('medicinas');
+    openAddForm();
+  } else if (action === 'sos') {
+    // Intención explícita desde el acceso directo del launcher:
+    // se omite la pulsación larga, pero la cuenta atrás de 10 s
+    // y el botón Cancelar siguen aplicando.
+    navigateTo('sos');
+  }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1750,6 +1874,7 @@ async function init() {
   renderInicio();
   startReminderLoop();
   syncNativeNotifications();
+  handleShortcut();
 
   if ('Notification' in window && state.settings.notifEnabled) {
     Notification.requestPermission();

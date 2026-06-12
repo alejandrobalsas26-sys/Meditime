@@ -3,8 +3,24 @@
    320 px → 2560 px responsive
    ───────────────────────────────────────────────────────── */
 
-/* Fonts */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');
+/* Fonts — DM Sans variable (300–700) auto-hospedada: funciona sin internet.
+   El navegador solo descarga el subset que necesita (unicode-range). */
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('fonts/dm-sans-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('fonts/dm-sans-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
 
 /* ── CSS Variables ── */
 :root {
@@ -176,6 +192,20 @@ body {
 .toast.success { background: var(--success); }
 .toast.error   { background: var(--danger); }
 .toast.warning { background: var(--warning); }
+
+.toast .toast-action {
+  margin-left: 12px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--radius-xl);
+  background: rgba(255,255,255,0.28);
+  color: inherit;
+  font-weight: 700;
+  font-size: 0.95em;
+  min-height: 44px;
+  cursor: pointer;
+}
+.toast .toast-action:active { transform: scale(0.95); }
 
 /* ═══════════════════════════════════════════════════════════
    TOP BAR
@@ -475,6 +505,12 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .btn-outline:hover  { background: var(--primary-muted); }
 .btn-outline:active { transform: scale(0.97); }
+
+.btn-share-doctor {
+  width: 100%;
+  margin-bottom: 16px;
+}
+.print-only { display: none; }
 
 .btn-ghost {
   background: transparent;
@@ -1240,9 +1276,29 @@ body.big-font input, body.big-font select, body.big-font textarea { font-size: 1
    PRINT
    ═══════════════════════════════════════════════════════════ */
 @media print {
-  .bottom-nav, .top-bar, .modal-overlay, #toast, #splash-screen { display: none !important; }
+  .bottom-nav, .top-bar, .modal-overlay, #toast, #splash-screen,
+  .btn-share-doctor { display: none !important; }
   #app-main { overflow: visible; padding-bottom: 0; }
-  .view[hidden] { display: block !important; }
+
+  /* Solo se imprime la vista activa. La regla anterior mostraba TODAS
+     las vistas ocultas: el informe incluía Ajustes con el teléfono
+     del médico y el número SOS. */
+
+  /* El informe se imprime siempre en claro, aunque la app esté en modo
+     oscuro (texto claro sobre papel blanco sería ilegible). */
+  body, body.dark-mode {
+    --bg:             #FFFFFF;
+    --bg-card:        #FFFFFF;
+    --text:           #000000;
+    --text-secondary: #333333;
+    --text-muted:     #555555;
+    background: #FFFFFF;
+  }
+
+  .print-only { display: block !important; }
+  #print-header { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #000; }
+  #print-header h1 { font-size: 1.3rem; margin-bottom: 6px; }
+  #print-header p  { font-size: 0.95rem; margin: 2px 0; }
 }
 
 /* ═══════════════════════════════════════════════════════════

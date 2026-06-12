@@ -12,11 +12,8 @@
   <meta name="description"
     content="Recordatorio de medicamentos con SOS de emergencia. Accesible para adultos mayores.">
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self';">
+    content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self';">
   <title>MediTime PRO</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="styles.css">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -185,12 +182,21 @@
     <!-- ═══════════════════════════════════ VIEW: HISTORIAL ═══ -->
     <section id="view-historial" class="view" aria-label="Historial de medicamentos" hidden>
 
+      <!-- Encabezado del informe: solo visible al imprimir (lo rellena app.js) -->
+      <div id="print-header" class="print-only" aria-hidden="true"></div>
+
       <div class="view-header">
         <h2>Historial</h2>
         <span class="subtitle">Últimos 30 días</span>
       </div>
 
       <div id="history-stats" class="history-stats" aria-label="Estadísticas de adherencia"></div>
+
+      <button id="btn-share-doctor" class="btn-outline btn-share-doctor"
+        aria-label="Compartir historial con mi médico. Abre el diálogo de impresión o guardar PDF">
+        <span aria-hidden="true">🖨️</span> Compartir con mi médico
+      </button>
+
       <div id="history-list" class="history-list" aria-live="polite" aria-label="Registros del historial"></div>
 
     </section>

@@ -2,7 +2,6 @@
   "appId": "com.meditime.pro",
   "appName": "MediTime PRO",
   "webDir": "MediTime_Web",
-  "bundledWebRuntime": false,
   "windowsAndroidStudioPath": "C:/Program Files/Android/Android Studio/bin/studio64.exe",
   "plugins": {
     "SplashScreen": {
