@@ -292,74 +292,83 @@ public class AddMedicinePanel extends JPanel {
     }
 
     private void saveMedicine() {
-        // Validaciones
-        if (nameField.getText().trim().isEmpty()) {
-            showError(" El nombre del medicamento es obligatorio");
-            nameField.requestFocus();
-            return;
-        }
+        try {
+            // Extracción y purga de caracteres de control/delimitadores
+            String name = sanitizeInput(nameField.getText(), 50);
+            String dose = sanitizeInput(doseField.getText(), 20);
+            String notes = sanitizeInput(notesArea.getText(), 200);
 
-        if (doseField.getText().trim().isEmpty()) {
-            showError(" La dosis es obligatoria");
-            doseField.requestFocus();
-            return;
-        }
-
-        if (timesModel.isEmpty()) {
-            showError(" Debe agregar al menos una hora de toma");
-            timeField.requestFocus();
-            return;
-        }
-
-        if (frequencyCombo.getSelectedIndex() == 1 &&
-                daysList.getSelectedIndices().length == 0) {
-            showError("Debe seleccionar al menos un día");
-            return;
-        }
-
-        // Obtener datos
-        String name = nameField.getText().trim();
-        String dose = doseField.getText().trim();
-        String frequency = frequencyCombo.getSelectedIndex() == 0 ? "daily" : "specific";
-
-        List<String> days = new ArrayList<>();
-        if ("specific".equals(frequency)) {
-            for (Object day : daysList.getSelectedValuesList()) {
-                days.add((String) day);
+            if (name.isEmpty()) {
+                showError("El nombre del medicamento es obligatorio o contiene caracteres inválidos.");
+                nameField.requestFocus();
+                return;
             }
+
+            if (dose.isEmpty()) {
+                showError("La dosis es obligatoria.");
+                doseField.requestFocus();
+                return;
+            }
+
+            if (timesModel.isEmpty()) {
+                showError("Debe agregar al menos una hora de toma.");
+                timeField.requestFocus();
+                return;
+            }
+
+            if (frequencyCombo.getSelectedIndex() == 1 && daysList.getSelectedIndices().length == 0) {
+                showError("Debe seleccionar al menos un día.");
+                return;
+            }
+
+            String frequency = frequencyCombo.getSelectedIndex() == 0 ? "daily" : "specific";
+
+            List<String> days = new ArrayList<>();
+            if ("specific".equals(frequency)) {
+                for (Object day : daysList.getSelectedValuesList()) {
+                    days.add((String) day);
+                }
+            }
+
+            List<String> times = new ArrayList<>();
+            for (int i = 0; i < timesModel.size(); i++) {
+                times.add(timesModel.getElementAt(i));
+            }
+
+            if (editingMedicine == null) {
+                Medicine medicine = new Medicine(name, dose, frequency, days, times, notes);
+                StorageService.addMedicine(medicine);
+                JOptionPane.showMessageDialog(this,
+                        "Medicamento agregado correctamente",
+                        "Éxito",
+                        JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                editingMedicine.setName(name);
+                editingMedicine.setDose(dose);
+                editingMedicine.setFrequency(frequency);
+                editingMedicine.setDays(days);
+                editingMedicine.setTimes(times);
+                editingMedicine.setNotes(notes);
+                StorageService.updateMedicine(editingMedicine);
+                JOptionPane.showMessageDialog(this,
+                        "Medicamento actualizado correctamente",
+                        "Éxito",
+                        JOptionPane.INFORMATION_MESSAGE);
+            }
+
+            clearForm();
+            appFrame.showMenu();
+
+        } catch (Exception ex) {
+            System.err.println("[SECURITY_ERROR] Fallo crítico en la persistencia: " + ex.getMessage());
+            showError("Error interno al procesar los datos. Operación abortada.");
         }
+    }
 
-        List<String> times = new ArrayList<>();
-        for (int i = 0; i < timesModel.size(); i++) {
-            times.add(timesModel.getElementAt(i));
-        }
-
-        String notes = notesArea.getText().trim();
-
-        // Guardar o actualizar
-        if (editingMedicine == null) {
-            Medicine medicine = new Medicine(name, dose, frequency, days, times, notes);
-            StorageService.addMedicine(medicine);
-            JOptionPane.showMessageDialog(this,
-                    "Medicamento agregado correctamente",
-                    "Éxito",
-                    JOptionPane.INFORMATION_MESSAGE);
-        } else {
-            editingMedicine.setName(name);
-            editingMedicine.setDose(dose);
-            editingMedicine.setFrequency(frequency);
-            editingMedicine.setDays(days);
-            editingMedicine.setTimes(times);
-            editingMedicine.setNotes(notes);
-            StorageService.updateMedicine(editingMedicine);
-            JOptionPane.showMessageDialog(this,
-                    " Medicamento actualizado correctamente",
-                    "Éxito",
-                    JOptionPane.INFORMATION_MESSAGE);
-        }
-
-        clearForm();
-        appFrame.showMenu();
+    private String sanitizeInput(String input, int maxLength) {
+        if (input == null) return "";
+        String clean = input.replaceAll("[|\\n\\r\\t]", " ").trim();
+        return clean.length() > maxLength ? clean.substring(0, maxLength) : clean;
     }
 
     private void showError(String message) {
