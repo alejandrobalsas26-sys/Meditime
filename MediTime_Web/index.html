@@ -115,11 +115,75 @@
           <textarea id="f-notes" name="notas" placeholder="Ej: Tomar con el desayuno" rows="2"
             maxlength="200"></textarea>
 
-          <label>Horarios de toma <span aria-hidden="true">*</span></label>
-          <div id="times-container" class="times-container"></div>
-          <button type="button" id="btn-add-time" class="btn-outline" aria-label="Agregar horario">
-            <span aria-hidden="true">＋</span> Agregar horario
-          </button>
+          <label id="when-label">¿Cuándo toma esta medicina? <span aria-hidden="true">*</span></label>
+
+          <!-- Botones de rutina: un toque añade la hora típica de esa franja -->
+          <div class="time-presets" role="group" aria-labelledby="when-label">
+            <button type="button" class="time-preset-btn" data-time="08:00" data-label="Mañana"
+              aria-label="Agregar Mañana, 8 de la mañana">
+              <span class="time-preset-emoji" aria-hidden="true">🌅</span>
+              <span class="time-preset-name">Mañana</span>
+              <span class="time-preset-time">08:00</span>
+            </button>
+            <button type="button" class="time-preset-btn" data-time="12:00" data-label="Mediodía"
+              aria-label="Agregar Mediodía, 12 del mediodía">
+              <span class="time-preset-emoji" aria-hidden="true">☀️</span>
+              <span class="time-preset-name">Mediodía</span>
+              <span class="time-preset-time">12:00</span>
+            </button>
+            <button type="button" class="time-preset-btn" data-time="18:00" data-label="Tarde"
+              aria-label="Agregar Tarde, 6 de la tarde">
+              <span class="time-preset-emoji" aria-hidden="true">🌇</span>
+              <span class="time-preset-name">Tarde</span>
+              <span class="time-preset-time">18:00</span>
+            </button>
+            <button type="button" class="time-preset-btn" data-time="21:00" data-label="Noche"
+              aria-label="Agregar Noche, 9 de la noche">
+              <span class="time-preset-emoji" aria-hidden="true">🌙</span>
+              <span class="time-preset-name">Noche</span>
+              <span class="time-preset-time">21:00</span>
+            </button>
+            <button type="button" class="time-preset-btn" data-time="22:00" data-label="Antes de dormir"
+              aria-label="Agregar Antes de dormir, 10 de la noche">
+              <span class="time-preset-emoji" aria-hidden="true">🛏️</span>
+              <span class="time-preset-name">Antes de dormir</span>
+              <span class="time-preset-time">22:00</span>
+            </button>
+          </div>
+
+          <!-- Selector manual sencillo con + / − -->
+          <div class="time-simple" role="group" aria-label="Elegir una hora con más y menos">
+            <div id="time-preview" class="time-preview" aria-live="polite" aria-label="Hora elegida">08:30</div>
+            <div class="time-stepper-row">
+              <span class="time-stepper-label">Hora</span>
+              <button type="button" id="btn-hour-minus" class="time-step-btn" aria-label="Una hora menos">−</button>
+              <span id="manual-hour-val" class="time-stepper-val" aria-hidden="true">08</span>
+              <button type="button" id="btn-hour-plus" class="time-step-btn" aria-label="Una hora más">＋</button>
+            </div>
+            <div class="time-stepper-row">
+              <span class="time-stepper-label">Minutos</span>
+              <button type="button" id="btn-min-minus" class="time-step-btn" aria-label="Cinco minutos menos">−5</button>
+              <span id="manual-min-val" class="time-stepper-val" aria-hidden="true">30</span>
+              <button type="button" id="btn-min-plus" class="time-step-btn" aria-label="Cinco minutos más">+5</button>
+            </div>
+            <button type="button" id="btn-add-manual-time" class="btn-outline time-add-manual"
+              aria-label="Agregar esta hora">Agregar esta hora</button>
+          </div>
+
+          <p class="times-added-label">Horas agregadas:</p>
+          <div id="times-container" class="times-container" aria-live="polite"
+            aria-label="Horas agregadas"></div>
+
+          <!-- Opción avanzada: escribir la hora exacta con el reloj del teléfono -->
+          <details class="time-advanced">
+            <summary>Opciones avanzadas</summary>
+            <button type="button" id="btn-add-time" class="btn-outline" aria-label="Agregar la hora actual">
+              <span aria-hidden="true">＋</span> Agregar la hora actual
+            </button>
+            <p class="time-advanced-hint">
+              Cada hora agregada aparece arriba. Toca la hora para escribirla exacta o ✕ para quitarla.
+            </p>
+          </details>
 
           <label for="f-freq">Frecuencia</label>
           <select id="f-freq" name="frecuencia" aria-label="Frecuencia de toma">
@@ -157,6 +221,10 @@
           <h2>EMERGENCIA</h2>
           <span class="sos-icon" aria-hidden="true">🚨</span>
         </div>
+
+        <p id="sos-practice-banner" class="sos-practice-banner" hidden>
+          Modo práctica: no se realizará ninguna llamada.
+        </p>
 
         <p class="sos-instruction">Tu ubicación GPS:</p>
         <div id="sos-location" class="sos-location-box" aria-live="polite" aria-label="Coordenadas GPS">
@@ -206,6 +274,31 @@
     <section id="view-ajustes" class="view" aria-label="Ajustes de la aplicación" hidden>
 
       <h2>Ajustes</h2>
+
+      <!-- Guía rápida -->
+      <div class="settings-group" aria-labelledby="group-guia">
+        <h3 id="group-guia" class="settings-group-title">Guía rápida</h3>
+        <ol class="quick-guide">
+          <li>Agrega tus medicinas.</li>
+          <li>Cuando suene la alarma, toca Tomado, Posponer u Omitir.</li>
+          <li>Si necesitas ayuda, mantén SOS presionado 2 segundos.</li>
+          <li>Puedes practicar antes de usarlo de verdad.</li>
+        </ol>
+      </div>
+
+      <!-- Practicar sin riesgo -->
+      <div class="settings-group" aria-labelledby="group-practica">
+        <h3 id="group-practica" class="settings-group-title">Practicar sin riesgo</h3>
+        <p class="setting-hint">Practica con calma. Nada de esto guarda datos ni hace llamadas.</p>
+        <button type="button" id="btn-practice-alarm" class="btn-outline practice-btn"
+          aria-label="Practicar alarma sin guardar nada">
+          <span aria-hidden="true">⏰</span> Practicar alarma
+        </button>
+        <button type="button" id="btn-practice-sos" class="btn-outline practice-btn"
+          aria-label="Practicar SOS sin llamar a nadie">
+          <span aria-hidden="true">🆘</span> Practicar SOS sin llamar
+        </button>
+      </div>
 
       <!-- Perfil del paciente -->
       <div class="settings-group" aria-labelledby="group-perfil">
@@ -298,6 +391,16 @@
             <span class="toggle-thumb"></span>
           </button>
         </div>
+        <div class="toggle-row">
+          <label for="s-senior-toggle" class="toggle-label">Modo adulto mayor</label>
+          <button id="s-senior-toggle" class="toggle-btn" role="switch" aria-checked="true"
+            aria-label="Activar modo adulto mayor: avisos e instrucciones más visibles">
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
+        <p class="setting-hint">
+          El modo adulto mayor deja los avisos en pantalla más tiempo y muestra instrucciones más claras.
+        </p>
       </div>
 
       <!-- Guardar y borrar -->

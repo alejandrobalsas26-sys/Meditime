@@ -139,6 +139,7 @@ let state = {
     darkMode:         false,
     doubleTap:        false,
     notifEnabled:     false,
+    seniorMode:       true,   // adultos mayores: toasts e instrucciones más visibles
     snoozeMinutes:    10,
     sosNumber:        '911',
   },
@@ -157,6 +158,8 @@ let state = {
 // Runtime-only (never persisted)
 let sosTimerID     = null;
 let sosHoldTimer   = null;     // timer de pulsación larga del botón SOS
+let practiceMode   = false;    // alarma de práctica: no escribe historial ni datos
+let sosPractice    = false;    // SOS de práctica: nunca marca ni llama
 let reminderTimer  = null;
 let alarmAlerts     = {};      // {"medId|HH:MM": ts del último aviso}
 let alarmAlertsDate = '';      // día al que pertenecen esos avisos
@@ -379,8 +382,8 @@ function showToast(msg, type /* 'success'|'error'|'warning' */ = '', action = nu
   clearElement(el);
   el.appendChild(document.createTextNode(msg));
 
-  // Botón de acción opcional (p. ej. "Deshacer"): el toast dura 5 s
-  // en vez de 3.2 s para dar tiempo a pulsarlo.
+  // Botón de acción opcional (p. ej. "Deshacer"): el toast dura más
+  // para dar tiempo a pulsarlo.
   if (action) {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -397,7 +400,14 @@ function showToast(msg, type /* 'success'|'error'|'warning' */ = '', action = nu
 
   el.className = 'toast' + (type ? ' ' + type : '') + ' show';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), action ? 5000 : 3200);
+  // Modo adulto mayor: el aviso permanece más tiempo en pantalla para
+  // que dé tiempo a leerlo sin prisas. Sin modo senior se mantienen las
+  // duraciones cortas originales.
+  const senior   = state.settings.seniorMode;
+  const duration = action
+    ? (senior ? 9000 : 5000)
+    : (senior ? 7000 : 3200);
+  toastTimer = setTimeout(() => el.classList.remove('show'), duration);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -411,7 +421,7 @@ function navigateTo(view) {
   // Salir de la pantalla SOS por cualquier vía detiene la cuenta atrás:
   // sin esto, la llamada de emergencia se haría aunque el usuario ya
   // hubiera cambiado a otra sección con la barra de navegación.
-  if (currentView === 'sos' && view !== 'sos') clearSOS();
+  if (currentView === 'sos' && view !== 'sos') { clearSOS(); sosPractice = false; }
 
   // Hide all views
   VIEWS.forEach(v => {
@@ -840,9 +850,40 @@ function closeAlarmModal() {
   if (modal) modal.hidden = true;
   alarmModalMed  = null;
   alarmModalTime = null;
+  practiceMode   = false;
+}
+
+// ── Práctica de alarma ──
+// Abre el modal de alarma real con datos de demostración. No programa
+// notificaciones, no añade ningún medicamento y no escribe en el historial:
+// cualquier botón (Tomado/Posponer/Omitir) solo muestra ánimo y cierra.
+function openPracticeAlarm() {
+  practiceMode = true;
+  const demo = {
+    id:    '__practice__',
+    name:  'Medicina de práctica',
+    dose:  '1 tableta',
+    notes: 'Esto es solo una práctica',
+    confirmedToday: {},
+    snoozedUntil:   {},
+  };
+  showAlarmModal(demo, '08:00');
+  const titleEl = document.getElementById('alarm-modal-title');
+  if (titleEl) titleEl.textContent = 'Práctica — Hora de su medicina';
+  playSound('normal');
+  vibrate('alarm');
+  speak('Modo práctica. Así suena y se ve una alarma. Toque Tomado, Posponer u Omitir. No se guardará nada.');
+}
+
+function endPracticeAlarm(msg) {
+  closeAlarmModal(); // ya pone practiceMode = false
+  playSound('confirmacion');
+  speak(msg);
+  showToast(msg, 'success');
 }
 
 function confirmDose() {
+  if (practiceMode) { endPracticeAlarm('¡Bien hecho! Era una práctica: no se guardó nada.'); return; }
   if (!alarmModalMed || !alarmModalTime) return;
   const med   = alarmModalMed;
   const time  = alarmModalTime;
@@ -878,6 +919,7 @@ function undoConfirmDose(medId, time, entryId) {
 }
 
 function snoozeDose() {
+  if (practiceMode) { endPracticeAlarm('Practicaste posponer. Era una práctica: no se guardó nada.'); return; }
   if (!alarmModalMed || !alarmModalTime) return;
   const minutes = state.settings.snoozeMinutes;
   if (!alarmModalMed.snoozedUntil) alarmModalMed.snoozedUntil = {};
@@ -903,6 +945,7 @@ function snoozeDose() {
 }
 
 function skipDose() {
+  if (practiceMode) { endPracticeAlarm('Practicaste omitir. Era una práctica: no se guardó nada.'); return; }
   if (!alarmModalMed || !alarmModalTime) return;
   alarmModalMed.confirmedToday[alarmModalTime] = true; // mark so it stops alerting
   state.history.unshift(createHistoryEntry(alarmModalMed.id, alarmModalMed.name, alarmModalTime, 'skipped'));
@@ -1015,6 +1058,35 @@ function renderMedicineList() {
 // ── Add/Edit Form ──
 let formTimes = []; // temp times while editing form
 
+// ── Selector de hora sencillo para adultos mayores ──
+// Rutinas frecuentes: un toque añade la hora típica de esa franja.
+const PRESET_TIMES = [
+  { emoji: '🌅', label: 'Mañana',          time: '08:00' },
+  { emoji: '☀️', label: 'Mediodía',        time: '12:00' },
+  { emoji: '🌇', label: 'Tarde',           time: '18:00' },
+  { emoji: '🌙', label: 'Noche',           time: '21:00' },
+  { emoji: '🛏️', label: 'Antes de dormir', time: '22:00' },
+];
+
+// Estado del selector manual con + / − (no se persiste).
+let manualHour   = 8;
+let manualMinute = 30;
+
+// Construye "HH:mm" a partir de hora y minuto, con envolvente segura
+// (las horas dan la vuelta 00–23 y los minutos 00–59).
+function formatTimeFromParts(hour, minute) {
+  const h = ((Math.trunc(hour) % 24) + 24) % 24;
+  const m = ((Math.trunc(minute) % 60) + 60) % 60;
+  return pad(h) + ':' + pad(m);
+}
+
+// Añade una hora a formTimes solo si no estaba ya. Devuelve true si se añadió.
+function addTimeIfNew(time) {
+  if (formTimes.includes(time)) return false;
+  formTimes.push(time);
+  return true;
+}
+
 function openAddForm() {
   editMedId = null;
   formTimes = [];
@@ -1054,6 +1126,9 @@ function openEditForm(id) {
     sw.classList.toggle('selected', sw.dataset.color === med.color);
   });
 
+  manualHour   = 8;
+  manualMinute = 30;
+  renderManualTime();
   renderTimesInForm();
   showFormPanel();
   speak('Editando ' + med.name + '.');
@@ -1081,6 +1156,9 @@ function clearForm() {
   document.querySelectorAll('.color-swatch').forEach((sw, i) => {
     sw.classList.toggle('selected', i === 0);
   });
+  manualHour   = 8;
+  manualMinute = 30;
+  renderManualTime();
   renderTimesInForm();
 }
 
@@ -1122,9 +1200,59 @@ function renderTimesInForm() {
 function addTimeToForm() {
   const now = new Date();
   const t = pad(now.getHours()) + ':' + pad(now.getMinutes());
-  formTimes.push(t);
-  renderTimesInForm();
-  speak('Horario agregado: ' + t + '.');
+  if (addTimeIfNew(t)) {
+    renderTimesInForm();
+    speak('Horario agregado: ' + t + '.');
+  } else {
+    showToast('Esa hora ya está agregada', 'warning');
+    speak('Esa hora ya estaba agregada.');
+  }
+}
+
+// Toque en un botón de rutina (Mañana, Mediodía…): añade su hora típica.
+function addPresetTime(time, label) {
+  if (!TIME_RE.test(time)) return;
+  if (addTimeIfNew(time)) {
+    renderTimesInForm();
+    showToast('Hora agregada: ' + label + ' ' + time, 'success');
+    speak('Hora agregada: ' + label + ' a las ' + time + '.');
+  } else {
+    showToast('Esa hora ya está agregada', 'warning');
+    speak('Esa hora ya estaba agregada.');
+  }
+}
+
+// Refresca el preview grande y los números del selector manual.
+function renderManualTime() {
+  const preview = document.getElementById('time-preview');
+  const hourEl  = document.getElementById('manual-hour-val');
+  const minEl   = document.getElementById('manual-min-val');
+  if (preview) preview.textContent = formatTimeFromParts(manualHour, manualMinute);
+  if (hourEl)  hourEl.textContent  = pad(((manualHour % 24) + 24) % 24);
+  if (minEl)   minEl.textContent   = pad(((manualMinute % 60) + 60) % 60);
+}
+
+function stepManualHour(delta) {
+  manualHour = ((manualHour + delta) % 24 + 24) % 24;
+  renderManualTime();
+}
+
+function stepManualMinute(delta) {
+  manualMinute = ((manualMinute + delta) % 60 + 60) % 60;
+  renderManualTime();
+}
+
+// Botón "Agregar esta hora" del selector manual.
+function addManualTime() {
+  const time = formatTimeFromParts(manualHour, manualMinute);
+  if (addTimeIfNew(time)) {
+    renderTimesInForm();
+    showToast('Hora agregada: ' + time, 'success');
+    speak('Hora agregada: ' + time + '.');
+  } else {
+    showToast('Esa hora ya está agregada', 'warning');
+    speak('Esa hora ya estaba agregada.');
+  }
 }
 
 function saveMedicineForm(e) {
@@ -1299,9 +1427,21 @@ function setupSOSLongPress() {
 function initSOS() {
   clearSOS();
   vibrate('sos');
+  const banner = document.getElementById('sos-practice-banner');
+  if (banner) banner.hidden = !sosPractice;
   getGPS();
   startSOSCountdown();
-  speak('Modo de emergencia activado. Obteniendo ubicación. Llame si necesita ayuda.');
+  if (sosPractice) {
+    speak('Modo práctica de emergencia. No se realizará ninguna llamada. Así se ve la pantalla y el botón Cancelar.');
+  } else {
+    speak('Modo de emergencia activado. Obteniendo ubicación. Llame si necesita ayuda.');
+  }
+}
+
+// Abre la pantalla SOS en modo práctica: nunca marca ni llama a emergencias.
+function openPracticeSOS() {
+  sosPractice = true;
+  navigateTo('sos');
 }
 
 // ── Helpers de ubicación SOS ──────────────────────────────────────────────
@@ -1469,6 +1609,13 @@ function startSOSCountdown() {
 }
 
 function makeSOSCall() {
+  // En práctica nunca se abre el marcador ni se llama a emergencias.
+  if (sosPractice) {
+    const statusEl = document.getElementById('sos-status');
+    if (statusEl) statusEl.textContent = 'Modo práctica: no se realizará ninguna llamada.';
+    speak('Modo práctica. No se realizará ninguna llamada.');
+    return;
+  }
   const num = sanitizePhone(state.settings.sosNumber) || '911';
   const statusEl = document.getElementById('sos-status');
   if (statusEl) statusEl.textContent = '¡Marcando ' + num + '!';
@@ -1657,6 +1804,7 @@ function populateSettings() {
   setToggle('s-dark-toggle',     state.settings.darkMode);
   setToggle('s-doubletap-toggle',state.settings.doubleTap);
   setToggle('s-notif-toggle',    state.settings.notifEnabled);
+  setToggle('s-senior-toggle',   state.settings.seniorMode);
 
   renderContacts();
 }
@@ -1688,6 +1836,7 @@ function saveSettings() {
   state.settings.darkMode     = getToggle('s-dark-toggle');
   state.settings.doubleTap    = getToggle('s-doubletap-toggle');
   state.settings.notifEnabled = getToggle('s-notif-toggle');
+  state.settings.seniorMode   = getToggle('s-senior-toggle');
 
   applySettings();
   saveState();
@@ -1921,9 +2070,33 @@ function wireEvents() {
   const btnCancel = document.getElementById('btn-cancel-form');
   if (btnCancel) btnCancel.addEventListener('click', () => { speak('Formulario cancelado.'); hideFormPanel(); });
 
-  // Add time button
+  // Add time button (opción avanzada: hora actual)
   const btnAddTime = document.getElementById('btn-add-time');
   if (btnAddTime) btnAddTime.addEventListener('click', addTimeToForm);
+
+  // Botones de rutina (Mañana, Mediodía, Tarde, Noche, Antes de dormir)
+  document.querySelectorAll('.time-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => addPresetTime(btn.dataset.time, btn.dataset.label || ''));
+  });
+
+  // Selector manual con + / −
+  const wireStep = (id, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click', fn);
+  };
+  wireStep('btn-hour-minus', () => stepManualHour(-1));
+  wireStep('btn-hour-plus',  () => stepManualHour(1));
+  wireStep('btn-min-minus',  () => stepManualMinute(-5));
+  wireStep('btn-min-plus',   () => stepManualMinute(5));
+  const btnAddManual = document.getElementById('btn-add-manual-time');
+  if (btnAddManual) btnAddManual.addEventListener('click', addManualTime);
+  renderManualTime();
+
+  // Práctica sin riesgo
+  const btnPracticeAlarm = document.getElementById('btn-practice-alarm');
+  if (btnPracticeAlarm) btnPracticeAlarm.addEventListener('click', openPracticeAlarm);
+  const btnPracticeSOS = document.getElementById('btn-practice-sos');
+  if (btnPracticeSOS) btnPracticeSOS.addEventListener('click', openPracticeSOS);
 
   // Medicine form submit
   const medForm = document.getElementById('med-form');
@@ -1943,7 +2116,15 @@ function wireEvents() {
 
   // SOS call button — update href dynamically
   const sosCallBtn = document.getElementById('sos-call-btn');
-  if (sosCallBtn) sosCallBtn.addEventListener('click', () => {
+  if (sosCallBtn) sosCallBtn.addEventListener('click', (e) => {
+    // En práctica el botón no abre el marcador: solo recuerda que es un simulacro.
+    if (sosPractice) {
+      e.preventDefault();
+      const statusEl = document.getElementById('sos-status');
+      if (statusEl) statusEl.textContent = 'Modo práctica: no se realizará ninguna llamada.';
+      speak('Modo práctica. No se realizará ninguna llamada.');
+      return;
+    }
     sosCallBtn.href = 'tel:' + (sanitizePhone(state.settings.sosNumber) || '911');
   });
 
@@ -1957,6 +2138,7 @@ function wireEvents() {
     's-dark-toggle':      { key: 'darkMode',     on: 'Modo oscuro activado.',     off: 'Modo oscuro desactivado.' },
     's-doubletap-toggle': { key: 'doubleTap',    on: 'Doble toque activado.',     off: 'Doble toque desactivado.' },
     's-notif-toggle':     { key: 'notifEnabled', on: 'Notificaciones activadas.', off: 'Notificaciones desactivadas.' },
+    's-senior-toggle':    { key: 'seniorMode',   on: 'Modo adulto mayor activado.', off: 'Modo adulto mayor desactivado.' },
   };
   Object.keys(toggleConfig).forEach(id => {
     const el = document.getElementById(id);

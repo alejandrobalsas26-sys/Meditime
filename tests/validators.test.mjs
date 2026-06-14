@@ -63,6 +63,30 @@ function nextAlternateDates(createdAt, hour, minute, count, fromTs = Date.now())
   return out;
 }
 
+// Mirror de formatTimeFromParts() de app.js — construye "HH:mm" con envolvente.
+function formatTimeFromParts(hour, minute) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const h = ((Math.trunc(hour) % 24) + 24) % 24;
+  const m = ((Math.trunc(minute) % 60) + 60) % 60;
+  return pad(h) + ':' + pad(m);
+}
+
+// Mirror de addTimeIfNew() de app.js — no añade horas duplicadas.
+function addTimeIfNew(times, time) {
+  if (times.includes(time)) return false;
+  times.push(time);
+  return true;
+}
+
+// Mirror de PRESET_TIMES de app.js — rutinas frecuentes.
+const PRESET_TIMES = [
+  { emoji: '🌅', label: 'Mañana',          time: '08:00' },
+  { emoji: '☀️', label: 'Mediodía',        time: '12:00' },
+  { emoji: '🌇', label: 'Tarde',           time: '18:00' },
+  { emoji: '🌙', label: 'Noche',           time: '21:00' },
+  { emoji: '🛏️', label: 'Antes de dormir', time: '22:00' },
+];
+
 // ── Horas válidas ─────────────────────────────────────────────────────────────
 test('TIME_RE acepta horas HH:mm válidas', () => {
   for (const t of ['00:00', '08:30', '14:05', '23:59']) {
@@ -74,6 +98,45 @@ test('TIME_RE rechaza horas inválidas', () => {
   for (const t of ['24:00', '99:99', '12:60', 'ab:cd', '7pm']) {
     assert.ok(!TIME_RE.test(t), `${t} debería ser inválida`);
   }
+});
+
+// ── Selector de hora sencillo (adultos mayores) ───────────────────────────────
+test('formatTimeFromParts devuelve siempre formato HH:mm válido', () => {
+  assert.equal(formatTimeFromParts(8, 0), '08:00');
+  assert.equal(formatTimeFromParts(8, 30), '08:30');
+  assert.equal(formatTimeFromParts(0, 5), '00:05');
+  assert.equal(formatTimeFromParts(23, 55), '23:55');
+  for (let h = 0; h < 24; h++) {
+    for (const m of [0, 5, 30, 55]) {
+      assert.ok(TIME_RE.test(formatTimeFromParts(h, m)), `${h}:${m} debería dar HH:mm válido`);
+    }
+  }
+});
+
+test('formatTimeFromParts envuelve las horas 00–23', () => {
+  assert.equal(formatTimeFromParts(24, 0), '00:00');  // 24 → 00
+  assert.equal(formatTimeFromParts(25, 0), '01:00');
+  assert.equal(formatTimeFromParts(-1, 0), '23:00');  // bajar de 00 → 23
+});
+
+test('formatTimeFromParts envuelve los minutos en pasos de 5', () => {
+  assert.equal(formatTimeFromParts(8, 60), '08:00');   // 60 → 00
+  assert.equal(formatTimeFromParts(8, -5), '08:55');   // bajar de 00 → 55
+  assert.equal(formatTimeFromParts(8, 55), '08:55');
+});
+
+test('las horas predefinidas (presets) son válidas según TIME_RE', () => {
+  for (const p of PRESET_TIMES) {
+    assert.ok(TIME_RE.test(p.time), `${p.label} (${p.time}) debería ser válida`);
+  }
+});
+
+test('addTimeIfNew no añade horas duplicadas', () => {
+  const times = [];
+  assert.equal(addTimeIfNew(times, '08:00'), true);
+  assert.equal(addTimeIfNew(times, '08:00'), false); // duplicado → no se añade
+  assert.equal(addTimeIfNew(times, '12:00'), true);
+  assert.deepEqual(times, ['08:00', '12:00']);
 });
 
 // ── Whitelist de frecuencias ──────────────────────────────────────────────────

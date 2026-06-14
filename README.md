@@ -24,6 +24,12 @@ Toda la interfaz está pensada para ser usada sin ayuda: botones grandes, lectur
 alto contraste, confirmación por doble toque y un botón **SOS** que obtiene la ubicación GPS
 y llama a emergencias. Los datos nunca salen del dispositivo.
 
+La app se está refinando con **retroalimentación de usuarios adultos mayores** reales. De ahí
+nacen un **selector de hora pensado para adultos mayores** (rutinas predefinidas + ajuste con
+botones + / −) y un **modo de práctica** para aprender sin riesgo antes de usarla de verdad.
+Ver [docs/ELDER_FEEDBACK.md](docs/ELDER_FEEDBACK.md). MediTime es una ayuda de organización
+personal; **no sustituye el consejo médico y no cuenta con validación clínica**.
+
 ## 📱 Capturas de pantalla
 
 | Inicio | Medicinas | SOS | Historial |
@@ -65,6 +71,13 @@ y llama a emergencias. Los datos nunca salen del dispositivo.
 - **Lectura por voz (TTS)** de cada pantalla y acción
 - **Alto contraste**, **letra grande** y **modo oscuro**
 - **Doble toque para confirmar** (evita pulsaciones accidentales)
+- **Modo adulto mayor** (activado por defecto): avisos que duran más en pantalla e
+  instrucciones más claras
+- **Selector de hora sencillo**: rutinas predefinidas (🌅 Mañana, ☀️ Mediodía, 🌇 Tarde,
+  🌙 Noche, 🛏️ Antes de dormir) y ajuste manual con botones + / −; la hora exacta queda en
+  "Opciones avanzadas"
+- **Practicar sin riesgo**: practicar la alarma y el SOS **sin llamar ni guardar datos**
+- **Guía rápida** de cuatro pasos, en texto grande y sin tecnicismos
 - Navegación completa por teclado y atributos ARIA en toda la app
 
 ### 🔒 Privacidad y seguridad

@@ -683,6 +683,132 @@ input[type="radio"].sr-only {
 .form-actions .btn-primary   { flex: 2; }
 
 /* ═══════════════════════════════════════════════════════════
+   SELECTOR DE HORA SENCILLO (adultos mayores)
+   ═══════════════════════════════════════════════════════════ */
+.time-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.time-preset-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: var(--primary-muted);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 8px;
+  color: var(--text);
+  min-height: var(--tap-min);
+}
+.time-preset-btn:hover  { border-color: var(--primary); }
+.time-preset-btn:active { transform: scale(0.97); }
+.time-preset-emoji { font-size: 1.6rem; line-height: 1; }
+.time-preset-name  { font-size: 1rem; font-weight: 700; }
+.time-preset-time  { font-size: 0.95rem; color: var(--primary); font-weight: 700; }
+
+.time-simple {
+  background: var(--bg, #F0FDFA);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.time-preview {
+  text-align: center;
+  font-size: 2.6rem;
+  font-weight: 800;
+  color: var(--primary);
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+}
+.time-stepper-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.time-stepper-label {
+  flex: 1;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.time-step-btn {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-size: 1.4rem;
+  font-weight: 800;
+  min-width: 56px;
+  min-height: var(--tap-min);
+  line-height: 1;
+}
+.time-step-btn:active { transform: scale(0.95); }
+.time-stepper-val {
+  min-width: 48px;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text);
+}
+.time-add-manual { width: 100%; margin-top: 6px; }
+
+.times-added-label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.time-advanced { margin-top: 8px; }
+.time-advanced summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--primary);
+  padding: 8px 0;
+  min-height: var(--tap-min);
+}
+.time-advanced-hint {
+  font-size: 0.9rem;
+  color: var(--text-soft, #475569);
+  margin-top: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GUÍA RÁPIDA / PRÁCTICA / AJUSTE SENIOR
+   ═══════════════════════════════════════════════════════════ */
+.quick-guide {
+  margin: 0;
+  padding-left: 1.4em;
+}
+.quick-guide li {
+  font-size: 1.1rem;
+  line-height: 1.5;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+.practice-btn { width: 100%; margin-top: 12px; }
+.setting-hint {
+  font-size: 0.95rem;
+  color: var(--text-soft, #475569);
+  margin-top: 10px;
+  line-height: 1.45;
+}
+.sos-practice-banner {
+  background: #FEF3C7;
+  color: #92400E;
+  border-radius: var(--radius-lg);
+  padding: 12px 16px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+/* ═══════════════════════════════════════════════════════════
    MEDICINE LIST
    ═══════════════════════════════════════════════════════════ */
 .view-header {
