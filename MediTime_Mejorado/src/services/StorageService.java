@@ -49,62 +49,96 @@ public class StorageService {
         }
     }
 
-    private static synchronized void saveToFile() {
+    /**
+     * Persiste la matriz 2D en disco.
+     * @return true solo si los datos se escribieron correctamente.
+     */
+    private static synchronized boolean saveToFile() {
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(FILENAME))) {
             for (int i = 0; i < medicineCount; i++) {
                 bw.write(String.join("|", medicinesMatrix[i]));
                 bw.newLine();
             }
             System.out.println("💾 Guardados " + medicineCount + " medicamentos desde la matriz 2D");
+            return true;
         } catch (IOException e) {
             System.err.println("❌ Error al guardar datos: " + e.getMessage());
+            return false;
         }
     }
 
-    public static synchronized void addMedicine(Medicine medicine) {
+    /**
+     * Parsea un ID de forma segura. Las filas corruptas nunca deben tumbar la UI.
+     */
+    private static Optional<Integer> parseIdSafe(String value) {
+        if (value == null) return Optional.empty();
+        try {
+            return Optional.of(Integer.parseInt(value.trim()));
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
+    }
+
+    public static synchronized boolean addMedicine(Medicine medicine) {
         loadFromFile();
         if (medicineCount >= MAX_MEDICINES) {
             System.out.println("⚠️ Límite de medicamentos alcanzado");
-            return;
+            return false;
         }
         medicinesMatrix[medicineCount] = medicine.toArray();
         medicineCount++;
-        saveToFile();
-        System.out.println("✅ Medicamento agregado: " + medicine.getName());
+        boolean saved = saveToFile();
+        if (saved) {
+            System.out.println("✅ Medicamento agregado: " + medicine.getName());
+        } else {
+            // Revertir el incremento si la persistencia falló
+            medicineCount--;
+        }
+        return saved;
     }
 
-    public static synchronized void updateMedicine(Medicine updated) {
+    public static synchronized boolean updateMedicine(Medicine updated) {
         loadFromFile();
         for (int i = 0; i < medicineCount; i++) {
-            if (Integer.parseInt(medicinesMatrix[i][0]) == updated.getId()) {
+            Optional<Integer> rowId = parseIdSafe(medicinesMatrix[i][0]);
+            if (rowId.isPresent() && rowId.get() == updated.getId()) {
                 medicinesMatrix[i] = updated.toArray();
-                saveToFile();
-                System.out.println("✅ Medicamento actualizado: " + updated.getName());
-                return;
+                boolean saved = saveToFile();
+                if (saved) {
+                    System.out.println("✅ Medicamento actualizado: " + updated.getName());
+                }
+                return saved;
             }
         }
+        return false;
     }
 
-    public static synchronized void removeMedicine(int id) {
+    public static synchronized boolean removeMedicine(int id) {
         loadFromFile();
         for (int i = 0; i < medicineCount; i++) {
-            if (Integer.parseInt(medicinesMatrix[i][0]) == id) {
+            Optional<Integer> rowId = parseIdSafe(medicinesMatrix[i][0]);
+            if (rowId.isPresent() && rowId.get() == id) {
                 String nombre = medicinesMatrix[i][1];
                 for (int j = i; j < medicineCount - 1; j++) {
                     medicinesMatrix[j] = medicinesMatrix[j + 1];
                 }
                 medicineCount--;
-                saveToFile();
-                System.out.println("🗑️ Medicamento eliminado: " + nombre);
-                return;
+                boolean saved = saveToFile();
+                if (saved) {
+                    System.out.println("🗑️ Medicamento eliminado: " + nombre);
+                }
+                return saved;
             }
         }
+        return false;
     }
 
     public static synchronized List<Medicine> getMedicines() {
         loadFromFile();
         List<Medicine> list = new ArrayList<>();
         for (int i = 0; i < medicineCount; i++) {
+            // Saltar filas con ID corrupto para que nunca tumben la UI
+            if (parseIdSafe(medicinesMatrix[i][0]).isEmpty()) continue;
             Medicine med = Medicine.fromArray(medicinesMatrix[i]);
             if (med != null) {
                 list.add(med);
@@ -116,7 +150,8 @@ public class StorageService {
     public static synchronized Optional<Medicine> findById(int id) {
         loadFromFile();
         for (int i = 0; i < medicineCount; i++) {
-            if (Integer.parseInt(medicinesMatrix[i][0]) == id) {
+            Optional<Integer> rowId = parseIdSafe(medicinesMatrix[i][0]);
+            if (rowId.isPresent() && rowId.get() == id) {
                 return Optional.ofNullable(Medicine.fromArray(medicinesMatrix[i]));
             }
         }

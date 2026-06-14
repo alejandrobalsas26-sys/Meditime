@@ -26,6 +26,9 @@ public class AddMedicinePanel extends JPanel {
             "Viernes", "Sábado", "Domingo"
     };
 
+    // Validación de hora HH:mm (00:00–23:59)
+    private static final String TIME_RE = "^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$";
+
     public AddMedicinePanel(AppFrame appFrame) {
         this.appFrame = appFrame;
         setupUI();
@@ -330,18 +333,28 @@ public class AddMedicinePanel extends JPanel {
                 }
             }
 
+            // Revalidar cada hora aunque ya exista en timesModel: nunca confiar
+            // ciegamente en el modelo de la lista.
             List<String> times = new ArrayList<>();
             for (int i = 0; i < timesModel.size(); i++) {
-                times.add(timesModel.getElementAt(i));
+                String time = timesModel.getElementAt(i);
+                if (time == null || !time.matches(TIME_RE)) {
+                    showError("Hora inválida detectada: \"" + time + "\". Use el formato HH:mm.");
+                    return;
+                }
+                times.add(time);
             }
 
+            if (times.isEmpty()) {
+                showError("Debe agregar al menos una hora de toma válida.");
+                timeField.requestFocus();
+                return;
+            }
+
+            boolean persisted;
             if (editingMedicine == null) {
                 Medicine medicine = new Medicine(name, dose, frequency, days, times, notes);
-                StorageService.addMedicine(medicine);
-                JOptionPane.showMessageDialog(this,
-                        "Medicamento agregado correctamente",
-                        "Éxito",
-                        JOptionPane.INFORMATION_MESSAGE);
+                persisted = StorageService.addMedicine(medicine);
             } else {
                 editingMedicine.setName(name);
                 editingMedicine.setDose(dose);
@@ -349,12 +362,22 @@ public class AddMedicinePanel extends JPanel {
                 editingMedicine.setDays(days);
                 editingMedicine.setTimes(times);
                 editingMedicine.setNotes(notes);
-                StorageService.updateMedicine(editingMedicine);
-                JOptionPane.showMessageDialog(this,
-                        "Medicamento actualizado correctamente",
-                        "Éxito",
-                        JOptionPane.INFORMATION_MESSAGE);
+                persisted = StorageService.updateMedicine(editingMedicine);
             }
+
+            // Mostrar éxito SOLO si la persistencia confirmó la escritura.
+            if (!persisted) {
+                showError("No se pudo guardar el medicamento. " +
+                        "Puede que se haya alcanzado el límite o que falle el almacenamiento.");
+                return;
+            }
+
+            JOptionPane.showMessageDialog(this,
+                    editingMedicine == null
+                            ? "Medicamento agregado correctamente"
+                            : "Medicamento actualizado correctamente",
+                    "Éxito",
+                    JOptionPane.INFORMATION_MESSAGE);
 
             clearForm();
             appFrame.showMenu();

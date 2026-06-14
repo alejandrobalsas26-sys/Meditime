@@ -28,7 +28,10 @@ y llama a emergencias. Los datos nunca salen del dispositivo.
 
 | Inicio | Medicinas | SOS | Historial |
 |:---:|:---:|:---:|:---:|
-| [screenshot] | [screenshot] | [screenshot] | [screenshot] |
+| ![Inicio](docs/screenshots/inicio.png) | ![Medicinas](docs/screenshots/medicinas.png) | ![SOS](docs/screenshots/sos.png) | ![Historial](docs/screenshots/historial.png) |
+
+> 📷 Las capturas van en `docs/screenshots/` (`inicio.png`, `medicinas.png`,
+> `sos.png`, `historial.png`). Si aún no existen, añádelas en esa carpeta.
 
 ## ✨ Características principales
 
@@ -144,6 +147,46 @@ El APK queda en `android/app/build/outputs/apk/debug/app-debug.apk`.
 La carpeta `MediTime_Mejorado/` contiene la versión original de escritorio en
 **Java/Swing**. Se conserva como referencia; el desarrollo activo es la app
 móvil/PWA. Para ejecutarla: abrir el módulo en IntelliJ IDEA y correr `Main.java`.
+
+## 🔐 Seguridad por diseño
+
+MediTime se construye con la seguridad y la privacidad como principios, no como
+añadidos:
+
+- **Offline-first sin backend**: no hay servidor que reciba tus datos.
+- **Content-Security-Policy** declarada en `index.html`.
+- **Sin `eval`, sin `new Function`, sin `document.write`, sin scripts remotos.**
+- **DOM seguro**: la interfaz se construye con `textContent`/`createElement`; no
+  se inyecta HTML controlado por el usuario.
+- **Validación y saneamiento** de toda entrada antes de guardarla.
+- **Android**: almacenamiento seguro, `allowBackup=false` y bloqueo biométrico
+  cuando está disponible.
+
+Más detalle en [SECURITY.md](SECURITY.md) y [PRIVACY.md](PRIVACY.md).
+
+## ✅ Pruebas y Quality Gates
+
+El proyecto incluye comprobaciones automáticas que también corren en CI:
+
+```bash
+npm run check          # Todo: seguridad + PWA + tests + build
+npm run security:check # Análisis estático (CSP, sin eval/Function/document.write)
+npm run validate:pwa   # Manifest e iconos + precache del service worker
+npm test               # Tests de validadores (node --test)
+```
+
+> `npm run check` es la puerta de calidad: encadena `security:check`,
+> `validate:pwa`, `test` y `build`.
+
+## 📋 Checklist de Release Readiness
+
+- [ ] `npm run check` pasa sin errores.
+- [ ] Iconos generados (`npm run icons`) y presentes en `MediTime_Web/icons/`.
+- [ ] Capturas de pantalla añadidas en `docs/screenshots/`.
+- [ ] `npx cap sync android` ejecutado tras cambios en la web.
+- [ ] APK firmado para publicación (ver [GUIA_PUBLICACION.md](GUIA_PUBLICACION.md)).
+- [ ] Revisado [PRIVACY.md](PRIVACY.md) y [SECURITY.md](SECURITY.md).
+- [ ] Datos de contacto de privacidad/seguridad completados.
 
 ## 📊 Estado del proyecto
 

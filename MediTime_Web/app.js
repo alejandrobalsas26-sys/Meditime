@@ -16,6 +16,15 @@ const ALARM_GRACE_MS   = 120 * 60_000; // una dosis se sigue avisando hasta 2 h 
 const ALARM_REALERT_MS = 5 * 60_000;   // re-aviso cada 5 min mientras no se confirme
 const TAG_COLORS = ['#0D9488','#7C3AED','#D97706','#DC2626','#16A34A','#0EA5E9','#EC4899','#64748B'];
 
+// Listas blancas y validadores (fuente única de verdad para el formulario)
+const VALID_FREQUENCIES = ['diario', 'semana', 'finde', 'alterno'];
+const VALID_PRIORITIES = ['normal', 'urgente'];
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+// Límites de longitud de los campos del formulario
+const MAX_NAME_LEN  = 60;
+const MAX_DOSE_LEN  = 40;
+const MAX_NOTES_LEN = 200;
+
 const FREQ_LABELS = {
   diario:  'Todos los días',
   semana:  'Lun – Vie',
@@ -679,6 +688,26 @@ function pad(n) { return String(n).padStart(2, '0'); }
 // NATIVE NOTIFICATIONS (suenan con la app cerrada)
 // Se reprograman completas tras cada cambio en los medicamentos.
 // ══════════════════════════════════════════════════════════
+// Calcula las próximas `count` fechas válidas para un medicamento de días
+// alternos, partiendo de su createdAt y con la misma paridad que usa
+// getMedicinesForToday. Devuelve objetos Date (uno por toma) en el futuro.
+function nextAlternateDates(createdAt, hour, minute, count, fromTs = Date.now()) {
+  const createdDay = Math.floor(createdAt / 86_400_000);
+  const out = [];
+  const cursor = new Date(fromTs);
+  cursor.setHours(hour, minute, 0, 0);
+  let guard = 0;
+  while (out.length < count && guard < count * 4 + 14) {
+    guard++;
+    const dayIndex = Math.floor(cursor.getTime() / 86_400_000);
+    if ((dayIndex - createdDay) % 2 === 0 && cursor.getTime() > fromTs) {
+      out.push(new Date(cursor.getTime()));
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
+}
+
 async function syncNativeNotifications() {
   if (!_LocalNotifications) return;
   try {
@@ -704,6 +733,21 @@ async function syncNativeNotifications() {
       med.times.forEach(t => {
         const [hour, minute] = t.split(':').map(Number);
         const body = med.name + (med.dose ? ' · ' + med.dose : '') + ' a las ' + t;
+
+        if (med.frequency === 'alterno') {
+          // No se programa a diario para siempre: se calculan las próximas 14
+          // fechas válidas y se agenda una notificación one-shot por cada una.
+          nextAlternateDates(med.createdAt, hour, minute, 14).forEach(at => {
+            toSchedule.push({
+              id: nextId++,
+              title: '💊 MediTime — Hora de su medicina',
+              body,
+              schedule: { at, allowWhileIdle: true },
+            });
+          });
+          return;
+        }
+
         const days = WEEKDAYS[med.frequency];
         if (days) {
           days.forEach(weekday => {
@@ -715,8 +759,7 @@ async function syncNativeNotifications() {
             });
           });
         } else {
-          // 'diario' y 'alterno' se programan a diario; en los días que no
-          // tocan ('alterno') la app abierta no muestra el modal
+          // 'diario': se repite cada día a la hora indicada
           toSchedule.push({
             id: nextId++,
             title: '💊 MediTime — Hora de su medicina',
@@ -1093,9 +1136,45 @@ function saveMedicineForm(e) {
     speak('El nombre es obligatorio.');
     return;
   }
+  if (name.length > MAX_NAME_LEN) {
+    showToast('El nombre es demasiado largo', 'error');
+    speak('El nombre es demasiado largo.');
+    return;
+  }
+  if (dose.length > MAX_DOSE_LEN) {
+    showToast('La dosis es demasiado larga', 'error');
+    speak('La dosis es demasiado larga.');
+    return;
+  }
+  if (notes.length > MAX_NOTES_LEN) {
+    showToast('Las notas son demasiado largas', 'error');
+    speak('Las notas son demasiado largas.');
+    return;
+  }
   if (formTimes.length === 0) {
     showToast('Agrega al menos un horario', 'error');
     speak('Debes agregar al menos un horario.');
+    return;
+  }
+  // Validar cada horario y deduplicar antes de guardar
+  for (const t of formTimes) {
+    if (!TIME_RE.test(t)) {
+      showToast('Hay un horario inválido', 'error');
+      speak('Hay un horario inválido. Usa el formato hora y minutos.');
+      return;
+    }
+  }
+  const times = [...new Set(formTimes)].sort();
+  if (!VALID_FREQUENCIES.includes(freq)) {
+    showToast('Frecuencia inválida', 'error');
+    return;
+  }
+  if (!VALID_PRIORITIES.includes(priority)) {
+    showToast('Prioridad inválida', 'error');
+    return;
+  }
+  if (!TAG_COLORS.includes(color)) {
+    showToast('Color inválido', 'error');
     return;
   }
 
@@ -1106,7 +1185,7 @@ function saveMedicineForm(e) {
       med.name      = name;
       med.dose      = dose;
       med.notes     = notes;
-      med.times     = [...formTimes].sort();
+      med.times     = times;
       med.frequency = freq;
       med.priority  = priority;
       med.color     = color;
@@ -1115,7 +1194,7 @@ function saveMedicineForm(e) {
     speak(name + ' actualizado correctamente.');
   } else {
     // New
-    const med = createMedicine({ name, dose, notes, times: [...formTimes].sort(), frequency: freq, priority, color });
+    const med = createMedicine({ name, dose, notes, times, frequency: freq, priority, color });
     state.medicines.push(med);
     showToast(name + ' guardado', 'success');
     speak(name + ' guardado correctamente.');

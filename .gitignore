@@ -10,5 +10,13 @@ target/
 .DS_Store
 Thumbs.db
 node_modules/
+dist/
 .env
+*.keystore
+*.jks
+*.apk
+*.aab
+android/app/build/
+*.log
+coverage/
 /.claude/
