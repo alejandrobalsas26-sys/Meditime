@@ -20,6 +20,31 @@ function sanitizeDelimiters(input) {
   return String(input).replace(/[|\n\r\t]/g, ' ');
 }
 
+// Mirror de isValidLocation() de app.js — valida {lat, lng, accuracy, ts}.
+function isValidLocation(loc) {
+  return !!loc
+    && typeof loc === 'object'
+    && typeof loc.lat === 'number' && isFinite(loc.lat)
+    && typeof loc.lng === 'number' && isFinite(loc.lng)
+    && loc.lat >= -90  && loc.lat <= 90
+    && loc.lng >= -180 && loc.lng <= 180;
+}
+
+// Mirror de getLocationAgeLabel() de app.js — etiqueta de antigüedad legible.
+function getLocationAgeLabel(ts, now) {
+  if (typeof ts !== 'number' || !isFinite(ts)) return '';
+  const ref  = typeof now === 'number' ? now : Date.now();
+  const diff = ref - ts;
+  if (diff < 0) return '';
+  if (diff < 60_000) return 'hace instantes';
+  const mins = Math.round(diff / 60_000);
+  if (mins < 60) return 'hace ' + mins + ' min';
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return 'hace ' + hrs + ' h';
+  const days = Math.round(hrs / 24);
+  return 'hace ' + days + ' día' + (days !== 1 ? 's' : '');
+}
+
 // Mirror de nextAlternateDates() de app.js (cadencia de días alternos)
 function nextAlternateDates(createdAt, hour, minute, count, fromTs = Date.now()) {
   const createdDay = Math.floor(createdAt / 86_400_000);
@@ -85,6 +110,52 @@ test('sanitizeDelimiters elimina pipe, salto de línea, retorno de carro y tab',
   assert.equal(sanitizeDelimiters('a\tb'), 'a b');
   assert.equal(sanitizeDelimiters('x|y\nz\tw'), 'x y z w');
   assert.ok(!/[|\n\r\t]/.test(sanitizeDelimiters('todo|junto\n\r\tmezclado')));
+});
+
+// ── Validación de ubicación SOS ───────────────────────────────────────────────
+test('isValidLocation acepta coordenadas válidas en rango', () => {
+  for (const loc of [
+    { lat: 0, lng: 0, accuracy: 10, ts: Date.now() },
+    { lat: 40.4168, lng: -3.7038, accuracy: 25, ts: Date.now() },
+    { lat: -90, lng: 180, accuracy: 0, ts: 1 },
+    { lat: 90, lng: -180, accuracy: 5, ts: 1 },
+  ]) {
+    assert.ok(isValidLocation(loc), JSON.stringify(loc) + ' debería ser válida');
+  }
+});
+
+test('isValidLocation rechaza lat/lng inválidos o fuera de rango', () => {
+  for (const loc of [
+    { lat: 91, lng: 0 },
+    { lat: -91, lng: 0 },
+    { lat: 0, lng: 181 },
+    { lat: 0, lng: -181 },
+    { lat: 'a', lng: 0 },
+    { lat: 0, lng: 'b' },
+    { lat: NaN, lng: 0 },
+    { lat: 0, lng: Infinity },
+  ]) {
+    assert.ok(!isValidLocation(loc), JSON.stringify(loc) + ' debería ser inválida');
+  }
+});
+
+test('isValidLocation rechaza valores nulos o no-objeto', () => {
+  for (const loc of [null, undefined, '', 0, 'lat,lng', []]) {
+    assert.ok(!isValidLocation(loc));
+  }
+});
+
+test('getLocationAgeLabel no lanza y devuelve cadena para ts válido o inválido', () => {
+  const now = Date.parse('2026-06-14T12:00:00Z');
+  assert.equal(typeof getLocationAgeLabel(now, now), 'string');
+  assert.equal(getLocationAgeLabel(now - 30_000, now), 'hace instantes');
+  assert.equal(getLocationAgeLabel(now - 5 * 60_000, now), 'hace 5 min');
+  assert.equal(getLocationAgeLabel(now - 3 * 3_600_000, now), 'hace 3 h');
+  assert.equal(getLocationAgeLabel(now - 2 * 86_400_000, now), 'hace 2 días');
+  // Entradas inválidas o futuras → cadena vacía, nunca excepción
+  for (const bad of [null, undefined, NaN, Infinity, 'x', now + 60_000]) {
+    assert.equal(getLocationAgeLabel(bad, now), '');
+  }
 });
 
 // ── Cadencia de días alternos ─────────────────────────────────────────────────

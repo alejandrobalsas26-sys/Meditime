@@ -149,6 +149,9 @@ let state = {
     doctorPhone: '',
   },
   contacts: [], // [{id, name, phone}]
+  sos: {
+    lastKnownLocation: null,   // {lat, lng, accuracy, ts} — última posición GPS válida (solo local)
+  },
 };
 
 // Runtime-only (never persisted)
@@ -208,6 +211,9 @@ function _applyParsed(parsed) {
     Object.assign(state.profile, parsed.profile);
   }
   if (Array.isArray(parsed.contacts)) state.contacts = parsed.contacts;
+  if (parsed.sos && typeof parsed.sos === 'object' && isValidLocation(parsed.sos.lastKnownLocation)) {
+    state.sos.lastKnownLocation = parsed.sos.lastKnownLocation;
+  }
 }
 
 async function loadState() {
@@ -275,6 +281,7 @@ async function saveState() {
     settings:  state.settings,
     profile:   state.profile,
     contacts:  state.contacts,
+    sos:       state.sos,
   });
 
   if (_SecureStorage) {
@@ -539,7 +546,7 @@ function renderNextAlarm(todayMeds) {
 function renderTodayAlarms(todayMeds) {
   const container = document.getElementById('today-alarms');
   if (!container) return;
-  container.innerHTML = '';
+  clearElement(container);
 
   const allAlarms = [];
   todayMeds.forEach(med => {
@@ -914,7 +921,7 @@ function skipDose() {
 function renderMedicineList() {
   const container = document.getElementById('med-list-container');
   if (!container) return;
-  container.innerHTML = '';
+  clearElement(container);
 
   if (state.medicines.length === 0) {
     const empty = document.createElement('div');
@@ -1080,7 +1087,7 @@ function clearForm() {
 function renderTimesInForm() {
   const container = document.getElementById('times-container');
   if (!container) return;
-  container.innerHTML = '';
+  clearElement(container);
 
   formTimes.forEach((t, idx) => {
     const chip = document.createElement('div');
@@ -1232,22 +1239,33 @@ function setupSOSLongPress() {
   const btn = document.querySelector('.nav-btn.nav-sos');
   if (!btn) return;
 
+  // Marca si la pulsación larga llegó a activar el SOS. Evita que la pista
+  // "Mantén pulsado…" salga tras una activación correcta (la suelta posterior).
+  let holdActivated = false;
+
   const startHold = () => {
     if (sosHoldTimer) return;
+    holdActivated = false;
     btn.classList.add('holding');
     sosHoldTimer = setTimeout(() => {
       sosHoldTimer = null;
+      holdActivated = true;            // activado: la suelta no debe mostrar pista
       btn.classList.remove('holding');
       navigateTo('sos');
     }, SOS_HOLD_MS);
   };
 
   const cancelHold = (showHint) => {
-    if (!sosHoldTimer) return;          // ya activado o nunca iniciado
+    // Ya se activó por pulsación larga: consumir la suelta sin mostrar pista.
+    if (holdActivated) {
+      holdActivated = false;
+      return;
+    }
+    if (!sosHoldTimer) return;          // nunca iniciado
     clearTimeout(sosHoldTimer);
     sosHoldTimer = null;
     btn.classList.remove('holding');
-    if (showHint) {
+    if (showHint) {                     // soltó antes del umbral → guía al usuario
       showToast('Mantén pulsado SOS 2 segundos para activar', 'warning');
       speak('Para activar la emergencia, mantén pulsado el botón SOS durante dos segundos.');
     }
@@ -1286,47 +1304,141 @@ function initSOS() {
   speak('Modo de emergencia activado. Obteniendo ubicación. Llame si necesita ayuda.');
 }
 
+// ── Helpers de ubicación SOS ──────────────────────────────────────────────
+// Las coordenadas solo se muestran dentro de la pantalla SOS y solo se guardan
+// localmente (state.sos.lastKnownLocation). Nunca se envían a ningún servidor.
+
+// Valida la forma {lat, lng, accuracy, ts}: coordenadas numéricas en rango.
+function isValidLocation(loc) {
+  return !!loc
+    && typeof loc === 'object'
+    && typeof loc.lat === 'number' && isFinite(loc.lat)
+    && typeof loc.lng === 'number' && isFinite(loc.lng)
+    && loc.lat >= -90  && loc.lat <= 90
+    && loc.lng >= -180 && loc.lng <= 180;
+}
+
+// Persiste la última posición GPS válida y la devuelve normalizada.
+function saveLastKnownLocation(pos) {
+  if (!pos || !pos.coords) return null;
+  const loc = {
+    lat:      pos.coords.latitude,
+    lng:      pos.coords.longitude,
+    accuracy: pos.coords.accuracy,
+    ts:       Date.now(),
+  };
+  if (!state.sos) state.sos = { lastKnownLocation: null };
+  state.sos.lastKnownLocation = loc;
+  saveState();
+  return loc;
+}
+
+// Etiqueta de antigüedad legible ("hace 5 min"). Nunca lanza ante ts inválido.
+function getLocationAgeLabel(ts, now) {
+  if (typeof ts !== 'number' || !isFinite(ts)) return '';
+  const ref  = typeof now === 'number' ? now : Date.now();
+  const diff = ref - ts;
+  if (diff < 0) return '';
+  if (diff < 60_000) return 'hace instantes';
+  const mins = Math.round(diff / 60_000);
+  if (mins < 60) return 'hace ' + mins + ' min';
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return 'hace ' + hrs + ' h';
+  const days = Math.round(hrs / 24);
+  return 'hace ' + days + ' día' + (days !== 1 ? 's' : '');
+}
+
+function renderSOSLoading(box) {
+  if (!box) return;
+  clearElement(box);
+  box.textContent = '📡 Obteniendo ubicación GPS…';
+}
+
+function renderSOSError(box, message) {
+  if (!box) return;
+  clearElement(box);
+  box.textContent = message;
+}
+
+// mode: 'fresh' (fix actual) | 'last-known' (última ubicación guardada)
+function renderSOSLocation(box, location, mode) {
+  if (!box) return;
+  clearElement(box);
+  if (!isValidLocation(location)) {
+    box.textContent = 'Ubicación no disponible.';
+    return;
+  }
+  const lat = location.lat.toFixed(5);
+  const lng = location.lng.toFixed(5);
+
+  if (mode === 'last-known') {
+    const label = document.createElement('div');
+    label.style.fontWeight = '700';
+    const age = getLocationAgeLabel(location.ts);
+    label.textContent = 'Última ubicación conocida' + (age ? ' · ' + age : '');
+    box.appendChild(label);
+  }
+
+  const latLine = document.createElement('div');
+  latLine.textContent = 'LAT: ' + lat;
+  const lngLine = document.createElement('div');
+  lngLine.textContent = 'LON: ' + lng;
+  box.appendChild(latLine);
+  box.appendChild(lngLine);
+
+  if (typeof location.accuracy === 'number' && isFinite(location.accuracy)) {
+    const accLine = document.createElement('div');
+    accLine.style.fontSize = '0.8em';
+    accLine.style.opacity  = '0.7';
+    accLine.textContent    = 'Precisión: ±' + Math.round(location.accuracy) + ' m';
+    box.appendChild(accLine);
+  }
+}
+
 function getGPS() {
   const box = document.getElementById('sos-location');
   if (!box) return;
-  clearElement(box);
-  box.textContent = '📡 Obteniendo señal GPS…';
+  renderSOSLoading(box);
 
   if (!navigator.geolocation) {
-    box.textContent = 'GPS no disponible en este dispositivo.';
+    renderSOSError(box, 'GPS no disponible en este dispositivo.');
     return;
   }
+
+  let resolved = false;   // ¿llegó ya una respuesta (fix u error) del GPS?
+
+  // Si en 3 s no hay fix fresco y existe última ubicación, mostrarla como
+  // puente. La cuenta atrás y la llamada nunca dependen de esto.
+  const fallbackTimer = setTimeout(() => {
+    if (resolved) return;
+    const last = state.sos && state.sos.lastKnownLocation;
+    if (isValidLocation(last)) renderSOSLocation(box, last, 'last-known');
+  }, 3000);
+
   navigator.geolocation.getCurrentPosition(
     pos => {
-      const lat = pos.coords.latitude.toFixed(5);
-      const lng = pos.coords.longitude.toFixed(5);
-      const acc = Math.round(pos.coords.accuracy);
-
-      clearElement(box);
-
-      const latLine  = document.createElement('div');
-      latLine.textContent = 'LAT: ' + lat;
-      const lngLine  = document.createElement('div');
-      lngLine.textContent = 'LON: ' + lng;
-      const accLine  = document.createElement('div');
-      accLine.style.fontSize = '0.8em';
-      accLine.style.opacity  = '0.7';
-      accLine.textContent    = 'Precisión: ±' + acc + ' m';
-
-      box.appendChild(latLine);
-      box.appendChild(lngLine);
-      box.appendChild(accLine);
-
-      speak('Ubicación obtenida. Latitud ' + lat + '. Longitud ' + lng);
+      resolved = true;
+      clearTimeout(fallbackTimer);
+      const loc = saveLastKnownLocation(pos);   // un fix fresco reemplaza el puente
+      renderSOSLocation(box, loc, 'fresh');
+      speak('Ubicación obtenida. Latitud ' + loc.lat.toFixed(5) + '. Longitud ' + loc.lng.toFixed(5));
     },
     err => {
+      resolved = true;
+      clearTimeout(fallbackTimer);
+      // Sin fix fresco: si hay última ubicación conocida, mostrarla.
+      const last = state.sos && state.sos.lastKnownLocation;
+      if (isValidLocation(last)) {
+        renderSOSLocation(box, last, 'last-known');
+        return;
+      }
       const msgs = {
         1: 'Permiso de ubicación denegado.',
         2: 'Señal GPS no disponible.',
         3: 'Tiempo de espera agotado.',
       };
       const msg = (msgs[err.code] || 'Error GPS desconocido.') + ' Active la ubicación del dispositivo.';
-      box.textContent = msg;
+      renderSOSError(box, msg);
       speak(msg);
     },
     { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
@@ -1408,7 +1520,7 @@ function historySummarySpeech() {
 function renderHistoryStats() {
   const container = document.getElementById('history-stats');
   if (!container) return;
-  container.innerHTML = '';
+  clearElement(container);
 
   const taken   = state.history.filter(e => e.action === 'taken').length;
   const skipped = state.history.filter(e => e.action === 'skipped').length;
@@ -1439,7 +1551,7 @@ function renderHistoryStats() {
 function renderHistoryList() {
   const container = document.getElementById('history-list');
   if (!container) return;
-  container.innerHTML = '';
+  clearElement(container);
 
   if (state.history.length === 0) {
     const p = document.createElement('p');
@@ -1613,7 +1725,7 @@ function applySettings() {
 function renderContacts() {
   const list = document.getElementById('contacts-list');
   if (!list) return;
-  list.innerHTML = '';
+  clearElement(list);
 
   if (state.contacts.length === 0) {
     const p = document.createElement('p');
@@ -1743,7 +1855,7 @@ function startClock() {
 function buildColorPicker() {
   const container = document.getElementById('f-color');
   if (!container) return;
-  container.innerHTML = '';
+  clearElement(container);
 
   TAG_COLORS.forEach((color, i) => {
     const swatch = document.createElement('button');

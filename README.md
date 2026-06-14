@@ -32,6 +32,11 @@ y llama a emergencias. Los datos nunca salen del dispositivo.
 
 > 📷 Las capturas van en `docs/screenshots/` (`inicio.png`, `medicinas.png`,
 > `sos.png`, `historial.png`). Si aún no existen, añádelas en esa carpeta.
+>
+> ⚠️ **Antes de publicar capturas** lee
+> [docs/PLAYSTORE_SCREENSHOTS.md](docs/PLAYSTORE_SCREENSHOTS.md). Las capturas de
+> **SOS deben redactar las coordenadas** (difuminadas o `LAT: 0.00000 / LON: 0.00000`)
+> y no deben mostrar datos reales de pacientes, médicos ni teléfonos.
 
 ## ✨ Características principales
 
@@ -187,6 +192,22 @@ npm test               # Tests de validadores (node --test)
 - [ ] APK firmado para publicación (ver [GUIA_PUBLICACION.md](GUIA_PUBLICACION.md)).
 - [ ] Revisado [PRIVACY.md](PRIVACY.md) y [SECURITY.md](SECURITY.md).
 - [ ] Datos de contacto de privacidad/seguridad completados.
+
+> Lista detallada de pruebas y pasos en
+> [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
+
+La app está **lista para pruebas internas**, pero un **lanzamiento a producción
+todavía requiere**:
+
+- AAB de release **firmado**.
+- Ficha en **Play Console**.
+- **URL pública** de la política de privacidad.
+- Formulario de **Seguridad de los datos** (Data Safety).
+- **Pruebas de alarmas en dispositivo real**.
+- Capturas con **datos demo / coordenadas redactadas**
+  (ver [docs/PLAYSTORE_SCREENSHOTS.md](docs/PLAYSTORE_SCREENSHOTS.md)).
+
+> MediTime **no es un dispositivo médico certificado**.
 
 ## 📊 Estado del proyecto
 

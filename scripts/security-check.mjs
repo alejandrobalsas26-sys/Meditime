@@ -24,7 +24,13 @@ const DANGEROUS = [
   { label: 'new Function(', re: /\bnew\s+Function\s*\(/g },
   { label: 'document.write(', re: /\bdocument\s*\.\s*write\s*\(/g },
 ];
-const WARN = [{ label: 'innerHTML', re: /\binnerHTML\b/g }];
+
+const INNERHTML_RE = /\binnerHTML\b/g;
+// Asignación de innerHTML. Un "clear" a cadena vacía ('' / "" / ``) es seguro;
+// cualquier otra asignación se considera contenido dinámico (potencialmente
+// controlado por el usuario) y hace fallar el chequeo.
+const INNERHTML_ASSIGN_RE = /\.innerHTML\s*=/;
+const INNERHTML_SAFE_CLEAR_RE = /\.innerHTML\s*=\s*(''|""|``)\s*;?\s*$/;
 
 const dangerHits = [];
 const warnHits = [];
@@ -53,15 +59,22 @@ for (const file of SCAN_FILES) {
   }
   const rel = relative(ROOT, file);
   const content = blankComments(readFileSync(file, 'utf8'), file.endsWith('.html'));
+  const lines = content.split('\n');
 
   for (const { label, re } of DANGEROUS) {
     for (const m of content.matchAll(re)) {
       dangerHits.push(`${rel}:${lineOf(content, m.index)} → ${label}`);
     }
   }
-  for (const { label, re } of WARN) {
-    for (const m of content.matchAll(re)) {
-      warnHits.push(`${rel}:${lineOf(content, m.index)} → ${label}`);
+
+  // innerHTML: distinguir "clear" seguro de asignación dinámica peligrosa.
+  for (const m of content.matchAll(INNERHTML_RE)) {
+    const lineNo = lineOf(content, m.index);
+    const lineText = lines[lineNo - 1] || '';
+    if (INNERHTML_ASSIGN_RE.test(lineText) && !INNERHTML_SAFE_CLEAR_RE.test(lineText)) {
+      dangerHits.push(`${rel}:${lineNo} → innerHTML con contenido dinámico`);
+    } else {
+      warnHits.push(`${rel}:${lineNo} → innerHTML`);
     }
   }
 }
@@ -77,9 +90,11 @@ if (!hasCSP) {
 
 // ── Resultado ───────────────────────────────────────────────────────────────
 if (warnHits.length > 0) {
-  console.warn('⚠️  Advertencias (innerHTML — revisa que no use datos del usuario):');
+  console.warn('⚠️  Advertencias (innerHTML seguro — revisa que no use datos del usuario):');
   for (const w of warnHits) console.warn('  • ' + w);
   console.warn('');
+} else {
+  console.log('✅ No innerHTML usages found.');
 }
 
 if (dangerHits.length > 0) {

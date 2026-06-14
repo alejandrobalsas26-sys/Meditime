@@ -27,9 +27,14 @@ Tus datos **nunca se envían** a internet por parte de la aplicación.
 
 ## Ubicación (GPS)
 
+- La ubicación de SOS se **procesa de forma local** en tu dispositivo.
 - La ubicación **solo se solicita durante el flujo de SOS** de emergencia.
-- La ubicación obtenida se **muestra localmente** en pantalla para que puedas
-  compartirla con quien te asiste. No se transmite a ningún servidor de MediTime.
+- La **última ubicación conocida puede guardarse localmente** para mejorar el
+  respaldo en una emergencia (si el GPS tarda o falla). Nunca sale del dispositivo.
+- La ubicación **no se envía a ningún servidor**.
+- La ubicación **solo se muestra en el dispositivo durante el SOS**.
+- Evita compartir **capturas de pantalla con coordenadas reales**.
+- La app **no vende ni transmite** tus datos.
 
 ## Permisos que usa la app y por qué
 
