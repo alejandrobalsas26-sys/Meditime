@@ -354,13 +354,23 @@
         <p class="setting-hint">Para que las alarmas suenen con la pantalla bloqueada:</p>
         <ol class="setting-steps">
           <li>Permite las notificaciones.</li>
-          <li>Activa el sonido de MediTime en los ajustes de Android.</li>
-          <li>Permite alarmas exactas si Android lo solicita.</li>
-          <li>Evita poner MediTime en suspensión profunda (ahorro de batería).</li>
+          <li>Activa el sonido del canal <b>Alarmas de medicamentos</b> en Ajustes de Android → Notificaciones → MediTime.</li>
+          <li>Permite alarmas exactas si Android lo solicita (Ajustes → Aplicaciones → Alarmas y recordatorios).</li>
+          <li>En Android, ve a Ajustes → Aplicaciones → MediTime → Batería y selecciona <b>Sin restricciones</b>.</li>
+          <li>Samsung: Ajustes → Aplicaciones → MediTime PRO → Batería → Sin restricciones.</li>
         </ol>
+        <p class="setting-hint">Si no suena con la pantalla apagada, pon MediTime como batería sin restricciones y activa el sonido del canal Alarmas de medicamentos en Android.</p>
         <button id="s-exact-alarm-btn" class="btn-secondary" type="button"
           aria-label="Revisar y activar las alarmas exactas de Android">
           Revisar alarmas exactas
+        </button>
+        <button id="btn-native-alarm-test" class="btn-secondary" type="button"
+          aria-label="Probar alarma nativa de Android en 3 minutos" style="margin-top:8px">
+          Probar alarma nativa en 3 minutos
+        </button>
+        <button id="btn-notif-diagnostics" class="btn-outline" type="button"
+          aria-label="Ver diagnóstico de alarmas pendientes" style="margin-top:6px">
+          Ver diagnóstico de alarmas
         </button>
       </div>
 

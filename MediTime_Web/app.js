@@ -711,10 +711,12 @@ function pad(n) { return String(n).padStart(2, '0'); }
 // "pegajosos": una vez creado, Android ignora cambios posteriores de sonido o
 // importancia. Si alguna vez cambia el sonido, hay que SUBIR el id (v2 → v3) o
 // desinstalar/reinstalar la app al probar en el dispositivo.
-const MEDICINE_ALARM_CHANNEL_ID = 'meditime_medicine_alarms_v2';
+// v2 → v3: nuevo sonido meditime_alarm_v3.wav (≈15 s, 5× el original).
+const MEDICINE_ALARM_CHANNEL_ID = 'meditime_medicine_alarms_v3';
 // Recurso de sonido en android/app/src/main/res/raw/ (el plugin recorta la
-// extensión). El archivo debe ir en minúsculas con guion bajo: meditime_alarm.wav
-const MEDICINE_ALARM_SOUND = 'meditime_alarm.wav';
+// extensión). El archivo debe ir en minúsculas con guion bajo.
+// meditime_alarm_v3.wav se genera con scripts/generate-alarm-sound.mjs.
+const MEDICINE_ALARM_SOUND = 'meditime_alarm_v3.wav';
 // Cuántos días por delante se agendan notificaciones concretas (one-shot). La
 // app reprograma al abrirse y tras cada cambio, así que ~2 semanas sobran y
 // evita agendar de más.
@@ -826,14 +828,22 @@ function nextAlternateDates(createdAt, hour, minute, count, fromTs = Date.now())
   return out;
 }
 
+// Devuelve { ok, scheduledCount, nextAt, exactAlarmStatus, error? }.
+// Nunca lanza: el llamador puede ignorar el resultado sin riesgo.
 async function syncNativeNotifications() {
-  if (!_LocalNotifications) return;
+  if (!_LocalNotifications) {
+    return { ok: false, scheduledCount: 0, nextAt: null, exactAlarmStatus: 'unsupported' };
+  }
   try {
     let perm = await _LocalNotifications.checkPermissions();
     if (perm.display !== 'granted') {
       perm = await _LocalNotifications.requestPermissions();
-      if (perm.display !== 'granted') return;
+      if (perm.display !== 'granted') {
+        return { ok: false, scheduledCount: 0, nextAt: null, exactAlarmStatus: 'unsupported', error: 'permission_denied' };
+      }
     }
+
+    const exactAlarmStatus = await checkExactAlarmSupport();
 
     // El sonido con la app cerrada depende del canal: crearlo antes de agendar.
     await ensureMedicineAlarmChannel();
@@ -891,8 +901,26 @@ async function syncNativeNotifications() {
     if (batch.length) {
       await _LocalNotifications.schedule({ notifications: batch });
     }
-  } catch (_) {
+
+    // Hora más próxima programada en formato "HH:mm" para el feedback al usuario.
+    let nextAt = null;
+    if (batch.length) {
+      let earliest = Infinity;
+      for (const n of batch) {
+        const ts = n.schedule && n.schedule.at instanceof Date ? n.schedule.at.getTime() : Infinity;
+        if (ts < earliest) earliest = ts;
+      }
+      if (isFinite(earliest)) {
+        const d = new Date(earliest);
+        const pad = x => String(x).padStart(2, '0');
+        nextAt = pad(d.getHours()) + ':' + pad(d.getMinutes());
+      }
+    }
+
+    return { ok: true, scheduledCount: batch.length, nextAt, exactAlarmStatus };
+  } catch (err) {
     // Sin permiso o sin plugin: siguen funcionando los recordatorios web
+    return { ok: false, scheduledCount: 0, nextAt: null, exactAlarmStatus: 'unsupported', error: String(err) };
   }
 }
 
@@ -945,6 +973,138 @@ async function reviewExactAlarms() {
     openExactAlarmSettings();
   } else {
     showToast('Este dispositivo no necesita activar alarmas exactas.', 'success');
+  }
+}
+
+// ── Prueba de alarma nativa (Task 2) ─────────────────────────────────────────
+// Programa una notificación nativa exactamente 3 minutos en el futuro con el
+// canal y sonido de producción. El usuario puede bloquear la pantalla y comprobar
+// si el sonido suena, lo que aisla el problema nativo del modal/WebAudio en-app.
+async function scheduleNativeAlarmTest() {
+  if (!_LocalNotifications) {
+    showToast('Solo disponible en la app nativa de Android.', 'warning');
+    return;
+  }
+  try {
+    let perm = await _LocalNotifications.checkPermissions();
+    if (perm.display !== 'granted') {
+      perm = await _LocalNotifications.requestPermissions();
+      if (perm.display !== 'granted') {
+        showToast('Permiso de notificaciones denegado.', 'error');
+        return;
+      }
+    }
+    await ensureMedicineAlarmChannel();
+
+    // Cancelar prueba anterior si existía
+    try { await _LocalNotifications.cancel({ notifications: [{ id: 880001 }] }); } catch (_) {}
+
+    const testDate = new Date(Date.now() + 3 * 60_000);
+    const pad = x => String(x).padStart(2, '0');
+    const testTimeStr = pad(testDate.getHours()) + ':' + pad(testDate.getMinutes());
+
+    await _LocalNotifications.schedule({
+      notifications: [{
+        id:         880001,
+        channelId:  MEDICINE_ALARM_CHANNEL_ID,
+        title:      'Prueba de alarma MediTime',
+        body:       'Esta es una prueba nativa. Debe sonar con la pantalla bloqueada.',
+        sound:      MEDICINE_ALARM_SOUND,
+        autoCancel: false,
+        schedule:   { at: testDate, allowWhileIdle: true },
+        extra:      { kind: 'native-alarm-test' },
+      }],
+    });
+
+    const pending = await _LocalNotifications.getPending();
+    const found = pending && pending.notifications && pending.notifications.some(n => Number(n.id) === 880001);
+    if (found) {
+      showToast('Prueba programada para ' + testTimeStr + '. Bloquea la pantalla y espera.', 'success');
+    } else {
+      showToast('La prueba no aparece como pendiente. Revisa permisos de Android.', 'warning');
+    }
+  } catch (err) {
+    showToast('Error al programar la prueba: ' + String(err), 'error');
+  }
+}
+
+// ── Diagnóstico de notificaciones (Task 3) ───────────────────────────────────
+// Muestra un panel con el estado de permisos, canal, conteo de pendientes y las
+// próximas 5 notificaciones agendadas. Solo usa createElement/textContent.
+async function showNotifDiagnostics() {
+  if (!_LocalNotifications) {
+    showToast('Diagnóstico solo disponible en la app nativa de Android.', 'warning');
+    return;
+  }
+  try {
+    const permResult  = await _LocalNotifications.checkPermissions();
+    const permStatus  = permResult.display || 'unknown';
+    const exactStatus = await checkExactAlarmSupport();
+    const pending     = await _LocalNotifications.getPending();
+    const notifs      = (pending && pending.notifications) ? pending.notifications : [];
+    const testPending = notifs.some(n => Number(n.id) === 880001);
+
+    const existing = document.getElementById('notif-diagnostics-panel');
+    if (existing) { existing.remove(); return; }   // segunda pulsación cierra
+
+    const panel = document.createElement('div');
+    panel.id = 'notif-diagnostics-panel';
+    panel.setAttribute('role', 'region');
+    panel.setAttribute('aria-label', 'Diagnóstico de alarmas');
+    panel.style.cssText = 'margin-top:12px;padding:12px;background:var(--card,#fff);border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:0.85rem;line-height:1.6';
+
+    const addLine = (label, value) => {
+      const p = document.createElement('p');
+      p.style.cssText = 'margin:0 0 4px';
+      const b = document.createElement('b');
+      b.textContent = label + ': ';
+      p.appendChild(b);
+      p.appendChild(document.createTextNode(String(value)));
+      panel.appendChild(p);
+    };
+
+    addLine('Permiso notificaciones', permStatus);
+    addLine('Alarmas exactas', exactStatus);
+    addLine('Canal activo', MEDICINE_ALARM_CHANNEL_ID);
+    addLine('Sonido del canal', MEDICINE_ALARM_SOUND);
+    addLine('Notificaciones pendientes', notifs.length);
+    addLine('Prueba id=880001 pendiente', testPending ? 'Sí' : 'No');
+
+    const top5 = notifs.slice(0, 5);
+    if (top5.length) {
+      const h = document.createElement('p');
+      h.style.cssText = 'margin:8px 0 2px;font-weight:bold';
+      h.textContent = 'Próximas ' + top5.length + ' notificaciones:';
+      panel.appendChild(h);
+      const pad = x => String(x).padStart(2, '0');
+      top5.forEach(n => {
+        const p = document.createElement('p');
+        p.style.cssText = 'margin:0 0 2px;padding-left:8px;font-size:0.8rem';
+        let info = 'id=' + n.id + '  ' + (n.title || '(sin título)');
+        if (n.schedule && n.schedule.at) {
+          const at = new Date(n.schedule.at);
+          if (!isNaN(at.getTime())) info += '  ' + pad(at.getHours()) + ':' + pad(at.getMinutes());
+        }
+        if (n.channelId) info += '  ch=' + n.channelId;
+        p.textContent = info;
+        panel.appendChild(p);
+      });
+    }
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'btn-outline';
+    closeBtn.style.cssText = 'margin-top:10px;font-size:0.8rem';
+    closeBtn.textContent = 'Cerrar diagnóstico';
+    closeBtn.addEventListener('click', () => panel.remove());
+    panel.appendChild(closeBtn);
+
+    const diagBtn = document.getElementById('btn-notif-diagnostics');
+    if (diagBtn && diagBtn.parentNode) {
+      diagBtn.parentNode.insertBefore(panel, diagBtn.nextSibling);
+    }
+  } catch (err) {
+    showToast('Error al obtener diagnóstico: ' + String(err), 'error');
   }
 }
 
@@ -1085,7 +1245,7 @@ function confirmDose() {
     onAction:  () => undoConfirmDose(med.id, time, entry.id),
   });
   // La toma de hoy ya no debe re-alarmar: reprograma para descartar su aviso nativo.
-  syncNativeNotifications();
+  syncNativeNotifications().catch(() => {});
   closeAlarmModal();
   if (currentView === 'inicio') renderInicio();
 }
@@ -1096,7 +1256,7 @@ function undoConfirmDose(medId, time, entryId) {
   state.history = state.history.filter(e => e.id !== entryId);
   saveState();
   // Al deshacer, la dosis vuelve a estar pendiente: reprograma su aviso nativo.
-  syncNativeNotifications();
+  syncNativeNotifications().catch(() => {});
   speak('Confirmación deshecha. La alarma volverá a avisar.');
   showToast('Confirmación deshecha', 'warning');
   if (currentView === 'inicio')    renderInicio();
@@ -1146,7 +1306,7 @@ function skipDose() {
   speak('Dosis omitida.');
   showToast('Dosis omitida', 'error');
   // La toma omitida ya no debe re-alarmar hoy: reprograma sin su aviso nativo.
-  syncNativeNotifications();
+  syncNativeNotifications().catch(() => {});
   closeAlarmModal();
   if (currentView === 'inicio') renderInicio();
 }
@@ -1448,7 +1608,7 @@ function addManualTime() {
   }
 }
 
-function saveMedicineForm(e) {
+async function saveMedicineForm(e) {
   e.preventDefault();
 
   const name     = sanitize(document.getElementById('f-name')?.value     || '');
@@ -1530,10 +1690,17 @@ function saveMedicineForm(e) {
   }
 
   saveState();
-  syncNativeNotifications();
   editMedId = null;
   hideFormPanel();
   renderMedicineList();
+  const notifResult = await syncNativeNotifications();
+  if (_LocalNotifications && notifResult) {
+    if (notifResult.ok && notifResult.scheduledCount > 0) {
+      showToast('Alarmas programadas. Próxima: ' + notifResult.nextAt, 'success');
+    } else if (!notifResult.ok && notifResult.error && notifResult.error !== 'permission_denied') {
+      showToast('No se pudo programar la alarma nativa. Revisa permisos de notificación.', 'warning');
+    }
+  }
 }
 
 function deleteMedicine(id) {
@@ -1542,7 +1709,7 @@ function deleteMedicine(id) {
   if (!confirm('¿Eliminar ' + med.name + '? Esta acción no se puede deshacer.')) return;
   state.medicines = state.medicines.filter(m => m.id !== id);
   saveState();
-  syncNativeNotifications();
+  syncNativeNotifications().catch(() => {});
   playSound('error');
   showToast(med.name + ' eliminado', 'warning');
   speak(med.name + ' eliminado.');
@@ -2354,7 +2521,7 @@ function wireEvents() {
 
       // Al activar notificaciones, pedir el permiso en ese momento
       if (cfg.key === 'notifEnabled' && next && _LocalNotifications) {
-        syncNativeNotifications();
+        syncNativeNotifications().catch(() => {});
         maybeWarnExactAlarm();
       } else if (cfg.key === 'notifEnabled' && next &&
           'Notification' in window && Notification.permission === 'default') {
@@ -2373,6 +2540,12 @@ function wireEvents() {
   // Settings — revisar/activar alarmas exactas de Android
   const btnExact = document.getElementById('s-exact-alarm-btn');
   if (btnExact) btnExact.addEventListener('click', reviewExactAlarms);
+
+  // Settings — probar alarma nativa (Task 2) y diagnóstico (Task 3)
+  const btnNativeTest = document.getElementById('btn-native-alarm-test');
+  if (btnNativeTest) btnNativeTest.addEventListener('click', scheduleNativeAlarmTest);
+  const btnDiag = document.getElementById('btn-notif-diagnostics');
+  if (btnDiag) btnDiag.addEventListener('click', showNotifDiagnostics);
 
   // Settings save
   const btnSave = document.getElementById('btn-save-settings');
@@ -2448,7 +2621,7 @@ async function init() {
   startReminderLoop();
   registerNotificationListeners();
   ensureMedicineAlarmChannel();
-  syncNativeNotifications();
+  syncNativeNotifications().catch(() => {});
   handleShortcut();
 
   if ('Notification' in window && state.settings.notifEnabled) {

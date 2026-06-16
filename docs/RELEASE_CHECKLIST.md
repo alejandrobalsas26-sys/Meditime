@@ -42,6 +42,7 @@ cd android && ./gradlew assembleDebug
 
 > El sonido de fondo y la exactitud **solo** se validan en un dispositivo real.
 
+- [ ] Botón **"Probar alarma nativa en 3 minutos"** → bloquear pantalla → esperar que suene
 - [ ] App **cerrada** + pantalla **bloqueada** → la alarma **suena**
 - [ ] App en **segundo plano** → la alarma **suena**
 - [ ] App **abierta** → aparece el modal y suena el sonido en-app
@@ -49,9 +50,11 @@ cd android && ./gradlew assembleDebug
 - [ ] Una dosis con hora ya pasada **no** se entrega tarde
 - [ ] Con **alarmas exactas desactivadas** aparece la guía y el botón para activarlas
 - [ ] Botón **"Revisar alarmas exactas"** en Ajustes abre los ajustes de Android
-- [ ] Excluir MediTime del **ahorro de batería** (evitar suspensión profunda)
-- [ ] Sonido del canal presente en `android/app/src/main/res/raw/meditime_alarm.wav`
-- [ ] Al cambiar el sonido, subir el id del canal (`_v2` → `_v3`) o reinstalar
+- [ ] MediTime configurado como **batería sin restricciones** (Samsung: Ajustes → Apps → MediTime PRO → Batería → Sin restricciones)
+- [ ] Canal **Alarmas de medicamentos** con sonido activado en Android
+- [ ] Sonido v3 presente en `android/app/src/main/res/raw/meditime_alarm_v3.wav` (~15 s)
+- [ ] Al cambiar el sonido en el futuro, subir el id del canal (`_v3` → `_v4`) o reinstalar
+- [ ] Si no suena: revisar batería sin restricciones → sonido del canal → alarmas exactas
 
 ## Preparación para Play Store
 

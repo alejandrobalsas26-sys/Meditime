@@ -329,3 +329,55 @@ test('nextDailyDates limita la cantidad al count pedido', () => {
   assert.equal(nextDailyDates(8, 0, 14, now).length, 14);
   assert.equal(nextDailyDates(8, 0, 1, now).length, 1);
 });
+
+// ── Selección de nextAt (hora más próxima agendada) ───────────────────────────
+// Mirror de la lógica inline en syncNativeNotifications().
+// Devuelve "HH:mm" de la notificación futura más cercana, o null si no hay.
+function pickNextAt(notifications) {
+  if (!notifications || !notifications.length) return null;
+  let earliest = Infinity;
+  for (const n of notifications) {
+    const ts = n.schedule && n.schedule.at instanceof Date ? n.schedule.at.getTime() : Infinity;
+    if (ts < earliest) earliest = ts;
+  }
+  if (!isFinite(earliest)) return null;
+  const d = new Date(earliest);
+  const pad = x => String(x).padStart(2, '0');
+  return pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
+test('pickNextAt devuelve la hora más próxima en formato HH:mm', () => {
+  const t1 = new Date('2026-03-10T08:00:00');
+  const t2 = new Date('2026-03-10T14:30:00');
+  const t3 = new Date('2026-03-11T06:00:00');
+  const notifs = [
+    { id: 2, schedule: { at: t2 } },
+    { id: 3, schedule: { at: t3 } },
+    { id: 1, schedule: { at: t1 } },   // la más próxima
+  ];
+  assert.equal(pickNextAt(notifs), '08:00');
+});
+
+test('pickNextAt devuelve null para lista vacía', () => {
+  assert.equal(pickNextAt([]), null);
+  assert.equal(pickNextAt(null), null);
+});
+
+test('pickNextAt ignora notificaciones sin schedule.at Date válido', () => {
+  const valid = new Date('2026-03-10T09:00:00');
+  const notifs = [
+    { id: 1, schedule: {} },                    // sin .at
+    { id: 2 },                                  // sin .schedule
+    { id: 3, schedule: { at: 'no-es-date' } },  // .at no es Date
+    { id: 4, schedule: { at: valid } },          // válida
+  ];
+  assert.equal(pickNextAt(notifs), '09:00');
+});
+
+test('pickNextAt da null si todas las notificaciones carecen de fecha válida', () => {
+  const notifs = [
+    { id: 1 },
+    { id: 2, schedule: {} },
+  ];
+  assert.equal(pickNextAt(notifs), null);
+});
