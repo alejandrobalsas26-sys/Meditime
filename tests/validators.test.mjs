@@ -246,3 +246,86 @@ test('nextAlternateDates respeta la paridad respecto a createdAt', () => {
     assert.equal((dayIndex - createdDay) % 2, 0);
   }
 });
+
+// ── Parseo de "HH:mm" (parseTimeParts) ────────────────────────────────────────
+// Mirror de parseTimeParts() de app.js — divide "HH:mm" o devuelve null.
+function parseTimeParts(time) {
+  if (typeof time !== 'string') return null;
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time);
+  return m ? [Number(m[1]), Number(m[2])] : null;
+}
+
+// Mirror de shouldSkipPastDate() de app.js.
+function shouldSkipPastDate(date, now = Date.now()) {
+  if (!(date instanceof Date) || isNaN(date.getTime())) return true;
+  return date.getTime() <= now + 60_000;
+}
+
+// Mirror de nextDailyDates() de app.js (próximas tomas diarias, todas futuras).
+function nextDailyDates(hour, minute, count, fromTs = Date.now()) {
+  const out = [];
+  const cursor = new Date(fromTs);
+  cursor.setHours(hour, minute, 0, 0);
+  if (shouldSkipPastDate(cursor, fromTs)) cursor.setDate(cursor.getDate() + 1);
+  while (out.length < count) {
+    out.push(new Date(cursor.getTime()));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
+}
+
+test('parseTimeParts acepta horas HH:mm válidas y devuelve [h, m]', () => {
+  assert.deepEqual(parseTimeParts('00:00'), [0, 0]);
+  assert.deepEqual(parseTimeParts('08:30'), [8, 30]);
+  assert.deepEqual(parseTimeParts('23:59'), [23, 59]);
+});
+
+test('parseTimeParts rechaza entradas inválidas con null', () => {
+  for (const bad of ['24:00', '12:60', '7:05', '08:5', '7pm', '', '0800', null, undefined, 800]) {
+    assert.equal(parseTimeParts(bad), null, `${bad} debería dar null`);
+  }
+});
+
+test('parseTimeParts acepta todas las horas predefinidas (presets)', () => {
+  for (const p of PRESET_TIMES) {
+    assert.ok(parseTimeParts(p.time), `${p.label} (${p.time}) debería parsearse`);
+  }
+});
+
+// ── Próximas tomas diarias (nextDailyDates) ───────────────────────────────────
+test('nextDailyDates nunca devuelve fechas pasadas', () => {
+  const now = new Date('2026-03-10T14:00:00').getTime();
+  const dates = nextDailyDates(8, 0, 5, now);
+  for (const d of dates) assert.ok(d.getTime() > now, d + ' debería ser futura');
+});
+
+test('nextDailyDates: si la hora de hoy ya pasó, la primera toma es mañana', () => {
+  const now = new Date('2026-03-10T14:00:00').getTime(); // 14:00, dosis a las 08:00
+  const first = nextDailyDates(8, 0, 3, now)[0];
+  assert.equal(first.getDate(), 11);    // día siguiente
+  assert.equal(first.getHours(), 8);
+  assert.equal(first.getMinutes(), 0);
+});
+
+test('nextDailyDates: si la hora de hoy aún no llega, la primera toma es hoy', () => {
+  const now = new Date('2026-03-10T06:00:00').getTime(); // 06:00, dosis a las 08:00
+  const first = nextDailyDates(8, 0, 3, now)[0];
+  assert.equal(first.getDate(), 10);    // mismo día
+  assert.equal(first.getHours(), 8);
+});
+
+test('nextDailyDates devuelve fechas en orden ascendente, separadas 1 día', () => {
+  const now = new Date('2026-03-10T06:00:00').getTime();
+  const dates = nextDailyDates(8, 0, 6, now);
+  for (let i = 1; i < dates.length; i++) {
+    assert.ok(dates[i] > dates[i - 1], 'cada fecha debe ir después de la anterior');
+    const diffDays = Math.round((dates[i] - dates[i - 1]) / 86_400_000);
+    assert.equal(diffDays, 1);
+  }
+});
+
+test('nextDailyDates limita la cantidad al count pedido', () => {
+  const now = new Date('2026-03-10T06:00:00').getTime();
+  assert.equal(nextDailyDates(8, 0, 14, now).length, 14);
+  assert.equal(nextDailyDates(8, 0, 1, now).length, 1);
+});

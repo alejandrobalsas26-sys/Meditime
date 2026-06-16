@@ -798,6 +798,16 @@ input[type="radio"].sr-only {
   margin-top: 10px;
   line-height: 1.45;
 }
+.setting-steps {
+  font-size: 0.95rem;
+  color: var(--text-soft, #475569);
+  line-height: 1.5;
+  margin: 6px 0 12px;
+  padding-left: 1.4em;
+  list-style: decimal;
+}
+.setting-steps li { margin-top: 4px; }
+#s-exact-alarm-btn { width: 100%; }
 .sos-practice-banner {
   background: #FEF3C7;
   color: #92400E;

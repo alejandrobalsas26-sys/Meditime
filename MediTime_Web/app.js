@@ -705,6 +705,107 @@ function pad(n) { return String(n).padStart(2, '0'); }
 // NATIVE NOTIFICATIONS (suenan con la app cerrada)
 // Se reprograman completas tras cada cambio en los medicamentos.
 // ══════════════════════════════════════════════════════════
+// Canal de alarmas de Android. En Android 8+ el SONIDO de la notificación lo
+// define el CANAL, no cada aviso: por eso, con la app cerrada, sin un canal con
+// sonido el aviso aparece mudo en la barra. Los ajustes de un canal son
+// "pegajosos": una vez creado, Android ignora cambios posteriores de sonido o
+// importancia. Si alguna vez cambia el sonido, hay que SUBIR el id (v2 → v3) o
+// desinstalar/reinstalar la app al probar en el dispositivo.
+const MEDICINE_ALARM_CHANNEL_ID = 'meditime_medicine_alarms_v2';
+// Recurso de sonido en android/app/src/main/res/raw/ (el plugin recorta la
+// extensión). El archivo debe ir en minúsculas con guion bajo: meditime_alarm.wav
+const MEDICINE_ALARM_SOUND = 'meditime_alarm.wav';
+// Cuántos días por delante se agendan notificaciones concretas (one-shot). La
+// app reprograma al abrirse y tras cada cambio, así que ~2 semanas sobran y
+// evita agendar de más.
+const NOTIF_DAYS_AHEAD = 14;
+// Tope global de pendientes, por prudencia ante límites de algunos fabricantes.
+const NOTIF_MAX_TOTAL = 180;
+
+// Crea (idempotente) el canal de alarmas con sonido propio. Llamar antes de
+// agendar y al iniciar la app. Sin soporte de canales no hace nada.
+async function ensureMedicineAlarmChannel() {
+  if (!_LocalNotifications || typeof _LocalNotifications.createChannel !== 'function') return;
+  try {
+    await _LocalNotifications.createChannel({
+      id:          MEDICINE_ALARM_CHANNEL_ID,
+      name:        'Alarmas de medicamentos',
+      description: 'Recordatorios importantes para tomar medicamentos',
+      importance:  5,        // IMPORTANCE_HIGH/MAX: suena y asoma en pantalla
+      visibility:  1,        // VISIBILITY_PUBLIC: visible en pantalla bloqueada
+      sound:       MEDICINE_ALARM_SOUND,
+      vibration:   true,
+      lights:      true,
+      lightColor:  '#14B8A6',
+    });
+  } catch (_) {
+    // Android <8 o navegador: se usa el canal por defecto
+  }
+}
+
+// Divide "HH:mm" en [hora, minuto] numéricos. Devuelve null si no es válida.
+function parseTimeParts(time) {
+  if (typeof time !== 'string') return null;
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time);
+  return m ? [Number(m[1]), Number(m[2])] : null;
+}
+
+// ¿Fecha inválida, pasada o demasiado próxima (≤ ahora+60 s) para agendar?
+// Evita avisos "rancios" que Android entregaría tarde o de inmediato.
+function shouldSkipPastDate(date, now = Date.now()) {
+  if (!(date instanceof Date) || isNaN(date.getTime())) return true;
+  return date.getTime() <= now + 60_000;
+}
+
+// Próximas `count` fechas diarias (una por día) a hora:minuto, todas futuras.
+// Si la hora de hoy ya pasó (o está en el margen), empieza mañana.
+function nextDailyDates(hour, minute, count, fromTs = Date.now()) {
+  const out = [];
+  const cursor = new Date(fromTs);
+  cursor.setHours(hour, minute, 0, 0);
+  if (shouldSkipPastDate(cursor, fromTs)) cursor.setDate(cursor.getDate() + 1);
+  while (out.length < count) {
+    out.push(new Date(cursor.getTime()));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
+}
+
+// Próximas `count` fechas en los días permitidos (convención JS de getDay():
+// 0=domingo … 6=sábado), a hora:minuto, todas futuras y en orden ascendente.
+function nextWeekdayDates(hour, minute, weekdays, count, fromTs = Date.now()) {
+  const allow = new Set(weekdays);
+  const out = [];
+  const cursor = new Date(fromTs);
+  cursor.setHours(hour, minute, 0, 0);
+  let guard = 0;
+  while (out.length < count && guard < count * 7 + 14) {
+    guard++;
+    if (allow.has(cursor.getDay()) && !shouldSkipPastDate(cursor, fromTs)) {
+      out.push(new Date(cursor.getTime()));
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
+}
+
+// Construye una notificación de medicina lista para agendar: canal (sonido en
+// Android 8+), `sound` de respaldo para Android 7.x, y metadatos en `extra` para
+// que el listener sepa qué dosis abrir al tocarla.
+function buildNotificationForMedicine(med, time, atDate, id) {
+  return {
+    id,
+    channelId:  MEDICINE_ALARM_CHANNEL_ID,
+    title:      '💊 MediTime — Hora de su medicina',
+    body:       med.name + (med.dose ? ' · ' + med.dose : '') + ' a las ' + time,
+    sound:      MEDICINE_ALARM_SOUND,   // respaldo Android 7.x (en 8+ manda el canal)
+    autoCancel: false,
+    ongoing:    false,
+    schedule:   { at: atDate, allowWhileIdle: true },
+    extra:      { medId: med.id, time, kind: 'medicine-reminder' },
+  };
+}
+
 // Calcula las próximas `count` fechas válidas para un medicamento de días
 // alternos, partiendo de su createdAt y con la misma paridad que usa
 // getMedicinesForToday. Devuelve objetos Date (uno por toma) en el futuro.
@@ -734,65 +835,145 @@ async function syncNativeNotifications() {
       if (perm.display !== 'granted') return;
     }
 
+    // El sonido con la app cerrada depende del canal: crearlo antes de agendar.
+    await ensureMedicineAlarmChannel();
+
+    // Se cancelan SOLO los recordatorios de medicina (ids < 900000); los avisos
+    // de "dosis pospuesta" (ids 900000+) ya programados se dejan intactos.
     const pending = await _LocalNotifications.getPending();
     if (pending && pending.notifications && pending.notifications.length) {
-      await _LocalNotifications.cancel({
-        notifications: pending.notifications.map(n => ({ id: n.id })),
-      });
+      const stale = pending.notifications
+        .filter(n => Number(n.id) < 900000)
+        .map(n => ({ id: n.id }));
+      if (stale.length) await _LocalNotifications.cancel({ notifications: stale });
     }
 
-    // El plugin numera los días: 1=domingo … 7=sábado
-    const WEEKDAYS = { semana: [2, 3, 4, 5, 6], finde: [1, 7] };
+    // Días permitidos por frecuencia, en convención JS de getDay(): 0=domingo … 6=sábado.
+    const WEEKDAYS_JS = { semana: [1, 2, 3, 4, 5], finde: [0, 6] };
+    const now     = Date.now();
+    const nowDate = new Date(now);
+    const horizon = now + NOTIF_DAYS_AHEAD * 86_400_000;
     const toSchedule = [];
     let nextId = 1;
 
     state.medicines.forEach(med => {
-      med.times.forEach(t => {
-        const [hour, minute] = t.split(':').map(Number);
-        const body = med.name + (med.dose ? ' · ' + med.dose : '') + ' a las ' + t;
+      (med.times || []).forEach(t => {
+        const parts = parseTimeParts(t);
+        if (!parts) return;                 // hora corrupta: no se agenda basura
+        const [hour, minute] = parts;
 
+        // Se generan fechas CONCRETAS (one-shot) en vez de repeticiones
+        // indefinidas: así nunca se entrega una toma "rancia" tarde y las
+        // pendientes quedan auditables. Acotado a ~NOTIF_DAYS_AHEAD días.
+        let dates;
         if (med.frequency === 'alterno') {
-          // No se programa a diario para siempre: se calculan las próximas 14
-          // fechas válidas y se agenda una notificación one-shot por cada una.
-          nextAlternateDates(med.createdAt, hour, minute, 14).forEach(at => {
-            toSchedule.push({
-              id: nextId++,
-              title: '💊 MediTime — Hora de su medicina',
-              body,
-              schedule: { at, allowWhileIdle: true },
-            });
-          });
-          return;
+          dates = nextAlternateDates(med.createdAt, hour, minute, NOTIF_DAYS_AHEAD, now);
+        } else if (WEEKDAYS_JS[med.frequency]) {
+          dates = nextWeekdayDates(hour, minute, WEEKDAYS_JS[med.frequency], NOTIF_DAYS_AHEAD, now);
+        } else {
+          dates = nextDailyDates(hour, minute, NOTIF_DAYS_AHEAD, now);
         }
 
-        const days = WEEKDAYS[med.frequency];
-        if (days) {
-          days.forEach(weekday => {
-            toSchedule.push({
-              id: nextId++,
-              title: '💊 MediTime — Hora de su medicina',
-              body,
-              schedule: { on: { weekday, hour, minute }, allowWhileIdle: true },
-            });
-          });
-        } else {
-          // 'diario': se repite cada día a la hora indicada
-          toSchedule.push({
-            id: nextId++,
-            title: '💊 MediTime — Hora de su medicina',
-            body,
-            schedule: { on: { hour, minute }, allowWhileIdle: true },
-          });
-        }
+        dates.forEach(at => {
+          if (shouldSkipPastDate(at, now)) return;   // nunca en el pasado/inminente
+          if (at.getTime() > horizon)     return;    // ni más allá del horizonte
+          // Si la toma de HOY ya está confirmada u omitida, no re-alarmar hoy.
+          const sameDay = at.getDate()     === nowDate.getDate()
+                       && at.getMonth()    === nowDate.getMonth()
+                       && at.getFullYear() === nowDate.getFullYear();
+          if (sameDay && med.confirmedToday && med.confirmedToday[t]) return;
+          toSchedule.push(buildNotificationForMedicine(med, t, at, nextId++));
+        });
       });
     });
 
-    if (toSchedule.length) {
-      await _LocalNotifications.schedule({ notifications: toSchedule });
+    const batch = toSchedule.slice(0, NOTIF_MAX_TOTAL);
+    if (batch.length) {
+      await _LocalNotifications.schedule({ notifications: batch });
     }
   } catch (_) {
     // Sin permiso o sin plugin: siguen funcionando los recordatorios web
   }
+}
+
+// ── Alarmas exactas (Android 12+) ─────────────────────────────────────────────
+// Sin "alarmas exactas" Android puede retrasar los avisos (se vieron a las 18:45
+// cuando tocaban a las 18:00). Avisamos una sola vez por sesión y ofrecemos
+// abrir los ajustes del sistema; nunca bloquea la app si la API no existe.
+let _exactAlarmWarned = false;
+
+// Devuelve 'granted' | 'denied' | 'unsupported'. Nunca lanza.
+async function checkExactAlarmSupport() {
+  if (!_LocalNotifications || typeof _LocalNotifications.checkExactNotificationSetting !== 'function') {
+    return 'unsupported';
+  }
+  try {
+    const res = await _LocalNotifications.checkExactNotificationSetting();
+    return res && res.exact_alarm === 'granted' ? 'granted' : 'denied';
+  } catch (_) {
+    return 'unsupported';
+  }
+}
+
+// Abre los ajustes del sistema para activar alarmas exactas (Android 12+).
+async function openExactAlarmSettings() {
+  if (!_LocalNotifications || typeof _LocalNotifications.changeExactNotificationSetting !== 'function') return;
+  try { await _LocalNotifications.changeExactNotificationSetting(); } catch (_) {}
+}
+
+// Aviso no intrusivo (una vez por sesión) si faltan las alarmas exactas.
+async function maybeWarnExactAlarm() {
+  if (_exactAlarmWarned) return;
+  const status = await checkExactAlarmSupport();
+  if (status !== 'denied') return;   // concedidas o no aplica → silencio
+  _exactAlarmWarned = true;
+  showToast(
+    'Para que las alarmas suenen a la hora exacta, activa Alarmas exactas en Android.',
+    'warning',
+    { label: 'Activar', ariaLabel: 'Abrir ajustes de alarmas exactas', onAction: openExactAlarmSettings },
+  );
+}
+
+// Botón "Revisar alarmas exactas" de Ajustes: confirma el estado o abre ajustes.
+async function reviewExactAlarms() {
+  const status = await checkExactAlarmSupport();
+  if (status === 'granted') {
+    showToast('Las alarmas exactas ya están activadas.', 'success');
+    speak('Las alarmas exactas ya están activadas.');
+  } else if (status === 'denied') {
+    speak('Abriendo los ajustes para activar las alarmas exactas.');
+    openExactAlarmSettings();
+  } else {
+    showToast('Este dispositivo no necesita activar alarmas exactas.', 'success');
+  }
+}
+
+// Al tocar una notificación de medicina: abrir la app en Inicio y, si la dosis
+// sigue pendiente, mostrar el modal de alarma con su sonido en-app.
+function handleNotificationTap(extra) {
+  navigateTo('inicio');
+  if (!extra || !extra.medId) return;
+  const med = state.medicines.find(m => m.id === extra.medId);
+  if (!med) return;
+  const time = extra.time;
+  const alreadyTaken = med.confirmedToday && med.confirmedToday[time];
+  if (time && !alreadyTaken) {
+    showAlarmModal(med, time);
+    playSound(med.priority === 'urgente' ? 'urgente' : 'normal');
+    vibrate(med.priority === 'urgente' ? 'urgent' : 'alarm');
+  }
+}
+
+// Registra los listeners del plugin (solo nativo). El sonido de fondo NO depende
+// de esto, sino del canal de Android; esto solo mejora el toque/apertura.
+function registerNotificationListeners() {
+  if (!_LocalNotifications || typeof _LocalNotifications.addListener !== 'function') return;
+  try {
+    _LocalNotifications.addListener('localNotificationActionPerformed', ev => {
+      const extra = ev && ev.notification && ev.notification.extra;
+      handleNotificationTap(extra);
+    });
+  } catch (_) {}
 }
 
 // ══════════════════════════════════════════════════════════
@@ -903,6 +1084,8 @@ function confirmDose() {
     ariaLabel: 'Deshacer la confirmación de ' + med.name,
     onAction:  () => undoConfirmDose(med.id, time, entry.id),
   });
+  // La toma de hoy ya no debe re-alarmar: reprograma para descartar su aviso nativo.
+  syncNativeNotifications();
   closeAlarmModal();
   if (currentView === 'inicio') renderInicio();
 }
@@ -912,6 +1095,8 @@ function undoConfirmDose(medId, time, entryId) {
   if (med && med.confirmedToday) delete med.confirmedToday[time];
   state.history = state.history.filter(e => e.id !== entryId);
   saveState();
+  // Al deshacer, la dosis vuelve a estar pendiente: reprograma su aviso nativo.
+  syncNativeNotifications();
   speak('Confirmación deshecha. La alarma volverá a avisar.');
   showToast('Confirmación deshecha', 'warning');
   if (currentView === 'inicio')    renderInicio();
@@ -927,14 +1112,20 @@ function snoozeDose() {
   state.history.unshift(createHistoryEntry(alarmModalMed.id, alarmModalMed.name, alarmModalTime, 'snoozed'));
   pruneHistory();
   saveState();
-  // Aviso nativo único al vencer el aplazamiento (suena con app cerrada)
+  // Aviso nativo único al vencer el aplazamiento (suena con app cerrada).
+  // Usa el mismo canal con sonido para que también suene en segundo plano.
   if (_LocalNotifications) {
+    ensureMedicineAlarmChannel();
     _LocalNotifications.schedule({
       notifications: [{
-        id:    900000 + Math.floor(Math.random() * 90000),
-        title: '💊 MediTime — Dosis pospuesta',
-        body:  alarmModalMed.name + (alarmModalMed.dose ? ' · ' + alarmModalMed.dose : ''),
-        schedule: { at: new Date(Date.now() + minutes * 60_000), allowWhileIdle: true },
+        id:         900000 + Math.floor(Math.random() * 90000),
+        channelId:  MEDICINE_ALARM_CHANNEL_ID,
+        title:      '💊 MediTime — Dosis pospuesta',
+        body:       alarmModalMed.name + (alarmModalMed.dose ? ' · ' + alarmModalMed.dose : ''),
+        sound:      MEDICINE_ALARM_SOUND,
+        autoCancel: false,
+        schedule:   { at: new Date(Date.now() + minutes * 60_000), allowWhileIdle: true },
+        extra:      { medId: alarmModalMed.id, time: alarmModalTime, kind: 'medicine-snooze' },
       }],
     }).catch(() => {});
   }
@@ -954,6 +1145,8 @@ function skipDose() {
   playSound('error');
   speak('Dosis omitida.');
   showToast('Dosis omitida', 'error');
+  // La toma omitida ya no debe re-alarmar hoy: reprograma sin su aviso nativo.
+  syncNativeNotifications();
   closeAlarmModal();
   if (currentView === 'inicio') renderInicio();
 }
@@ -1854,6 +2047,8 @@ function saveSettings() {
       }
     });
   }
+
+  if (state.settings.notifEnabled) maybeWarnExactAlarm();
 }
 
 function getToggle(id) {
@@ -2160,6 +2355,7 @@ function wireEvents() {
       // Al activar notificaciones, pedir el permiso en ese momento
       if (cfg.key === 'notifEnabled' && next && _LocalNotifications) {
         syncNativeNotifications();
+        maybeWarnExactAlarm();
       } else if (cfg.key === 'notifEnabled' && next &&
           'Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission().then(perm => {
@@ -2173,6 +2369,10 @@ function wireEvents() {
       }
     });
   });
+
+  // Settings — revisar/activar alarmas exactas de Android
+  const btnExact = document.getElementById('s-exact-alarm-btn');
+  if (btnExact) btnExact.addEventListener('click', reviewExactAlarms);
 
   // Settings save
   const btnSave = document.getElementById('btn-save-settings');
@@ -2246,12 +2446,18 @@ async function init() {
   resetDailyConfirmed();
   renderInicio();
   startReminderLoop();
+  registerNotificationListeners();
+  ensureMedicineAlarmChannel();
   syncNativeNotifications();
   handleShortcut();
 
   if ('Notification' in window && state.settings.notifEnabled) {
     Notification.requestPermission();
   }
+
+  // Si ya hay notificaciones activas pero faltan las alarmas exactas, avisar una
+  // vez (la causa típica de avisos que llegan tarde). No bloquea ni se repite.
+  if (state.settings.notifEnabled) maybeWarnExactAlarm();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('service-worker.js').catch(() => {});

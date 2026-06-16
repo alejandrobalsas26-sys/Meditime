@@ -38,6 +38,21 @@ cd android && ./gradlew assembleDebug
 - [ ] Modo oscuro
 - [ ] Borrar datos
 
+## Alarmas y sonido en Android (ver `docs/ANDROID_ALARMS.md`)
+
+> El sonido de fondo y la exactitud **solo** se validan en un dispositivo real.
+
+- [ ] App **cerrada** + pantalla **bloqueada** → la alarma **suena**
+- [ ] App en **segundo plano** → la alarma **suena**
+- [ ] App **abierta** → aparece el modal y suena el sonido en-app
+- [ ] **Tocar** la notificación abre la app y muestra el modal de la dosis
+- [ ] Una dosis con hora ya pasada **no** se entrega tarde
+- [ ] Con **alarmas exactas desactivadas** aparece la guía y el botón para activarlas
+- [ ] Botón **"Revisar alarmas exactas"** en Ajustes abre los ajustes de Android
+- [ ] Excluir MediTime del **ahorro de batería** (evitar suspensión profunda)
+- [ ] Sonido del canal presente en `android/app/src/main/res/raw/meditime_alarm.wav`
+- [ ] Al cambiar el sonido, subir el id del canal (`_v2` → `_v3`) o reinstalar
+
 ## Preparación para Play Store
 
 - [ ] Generar AAB firmado (release)
