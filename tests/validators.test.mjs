@@ -381,3 +381,50 @@ test('pickNextAt da null si todas las notificaciones carecen de fecha válida', 
   ];
   assert.equal(pickNextAt(notifs), null);
 });
+
+// ── Saneamiento de entradas de texto (sanitize) ───────────────────────────────
+// Mirror de sanitize() de app.js — elimina los delimitadores HTML/JS peligrosos.
+function sanitize(str) {
+  return str.replace(/[<>&"'`]/g, '').trim();
+}
+
+test('sanitize elimina < > & " \' y backtick', () => {
+  assert.equal(sanitize('<script>'), 'script');
+  assert.equal(sanitize('a > b'), 'a  b');
+  assert.equal(sanitize('a & b'), 'a  b');
+  assert.equal(sanitize('"hola"'), 'hola');
+  assert.equal(sanitize("'hola'"), 'hola');
+  assert.equal(sanitize('`hola`'), 'hola');
+});
+
+test('sanitize conserva texto normal, tildes y signos comunes', () => {
+  assert.equal(sanitize('Metformina 500 mg'), 'Metformina 500 mg');
+  assert.equal(sanitize('  Aspirina  '), 'Aspirina');
+  assert.equal(sanitize('Vitamina D3 · 1 tableta'), 'Vitamina D3 · 1 tableta');
+  assert.equal(sanitize('Carmen López'), 'Carmen López');
+});
+
+test('sanitize devuelve cadena vacía para entradas vacías', () => {
+  assert.equal(sanitize(''), '');
+  assert.equal(sanitize('   '), '');
+});
+
+// ── Saneamiento de números de teléfono (sanitizePhone) ───────────────────────
+// Mirror de sanitizePhone() de app.js — conserva solo dígitos y operadores de marcación.
+function sanitizePhone(str) {
+  return String(str || '').replace(/[^\d+*#]/g, '');
+}
+
+test('sanitizePhone conserva dígitos, +, * y #', () => {
+  assert.equal(sanitizePhone('911'),        '911');
+  assert.equal(sanitizePhone('+34 612 34 56 78'), '+34612345678');
+  assert.equal(sanitizePhone('*22#'),       '*22#');
+  assert.equal(sanitizePhone('555-1234'),   '5551234');
+  assert.equal(sanitizePhone('(555) 123'), '555123');
+});
+
+test('sanitizePhone devuelve cadena vacía para null o undefined', () => {
+  assert.equal(sanitizePhone(null),      '');
+  assert.equal(sanitizePhone(undefined), '');
+  assert.equal(sanitizePhone(''),        '');
+});

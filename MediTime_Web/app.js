@@ -997,7 +997,7 @@ async function scheduleNativeAlarmTest() {
     await ensureMedicineAlarmChannel();
 
     // Cancelar prueba anterior si existía
-    try { await _LocalNotifications.cancel({ notifications: [{ id: 880001 }] }); } catch (_) {}
+    try { await _LocalNotifications.cancel({ notifications: [{ id: 990001 }] }); } catch (_) {}
 
     const testDate = new Date(Date.now() + 3 * 60_000);
     const pad = x => String(x).padStart(2, '0');
@@ -1005,7 +1005,7 @@ async function scheduleNativeAlarmTest() {
 
     await _LocalNotifications.schedule({
       notifications: [{
-        id:         880001,
+        id:         990001,
         channelId:  MEDICINE_ALARM_CHANNEL_ID,
         title:      'Prueba de alarma MediTime',
         body:       'Esta es una prueba nativa. Debe sonar con la pantalla bloqueada.',
@@ -1017,7 +1017,7 @@ async function scheduleNativeAlarmTest() {
     });
 
     const pending = await _LocalNotifications.getPending();
-    const found = pending && pending.notifications && pending.notifications.some(n => Number(n.id) === 880001);
+    const found = pending && pending.notifications && pending.notifications.some(n => Number(n.id) === 990001);
     if (found) {
       showToast('Prueba programada para ' + testTimeStr + '. Bloquea la pantalla y espera.', 'success');
     } else {
@@ -1042,7 +1042,7 @@ async function showNotifDiagnostics() {
     const exactStatus = await checkExactAlarmSupport();
     const pending     = await _LocalNotifications.getPending();
     const notifs      = (pending && pending.notifications) ? pending.notifications : [];
-    const testPending = notifs.some(n => Number(n.id) === 880001);
+    const testPending = notifs.some(n => Number(n.id) === 990001);
 
     const existing = document.getElementById('notif-diagnostics-panel');
     if (existing) { existing.remove(); return; }   // segunda pulsación cierra
@@ -1068,7 +1068,7 @@ async function showNotifDiagnostics() {
     addLine('Canal activo', MEDICINE_ALARM_CHANNEL_ID);
     addLine('Sonido del canal', MEDICINE_ALARM_SOUND);
     addLine('Notificaciones pendientes', notifs.length);
-    addLine('Prueba id=880001 pendiente', testPending ? 'Sí' : 'No');
+    addLine('Prueba id=990001 pendiente', testPending ? 'Sí' : 'No');
 
     const top5 = notifs.slice(0, 5);
     if (top5.length) {

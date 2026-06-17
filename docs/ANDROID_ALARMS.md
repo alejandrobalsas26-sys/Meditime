@@ -35,7 +35,7 @@ y a veces **tarde** (≈18:45). Dos causas:
   denegado, se avisa una vez y se ofrece abrir los ajustes
   (`changeExactNotificationSetting()`). Botón en Ajustes: **"Revisar alarmas exactas"**.
 - **Botón "Probar alarma nativa en 3 minutos"** (`scheduleNativeAlarmTest()`):
-  agenda una notificación de prueba (id 880001) para exactamente 3 min en el futuro
+  agenda una notificación de prueba (id 990001) para exactamente 3 min en el futuro
   usando el canal y sonido de producción. Bloquear la pantalla y esperar confirma
   si el sistema nativo funciona, desacoplado del modal/WebAudio en-app.
 - **"Ver diagnóstico de alarmas"** (`showNotifDiagnostics()`): muestra permiso,
