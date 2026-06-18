@@ -15,6 +15,8 @@
     "android:sync": "npx cap sync android",
     "android:open": "npx cap open android",
     "android:debug": "cd android && ./gradlew assembleDebug",
+    "android:bundle": "cd android && ./gradlew bundleRelease",
+    "android:release-check": "npx cap sync android && cd android && ./gradlew assembleDebug",
     "cap:init": "npx cap init \"MediTime PRO\" com.meditime.pro --web-dir MediTime_Web",
     "cap:add:ios": "npx cap add ios",
     "cap:add:android": "npx cap add android",

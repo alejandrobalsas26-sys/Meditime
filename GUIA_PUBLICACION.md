@@ -1,6 +1,10 @@
 # Guía de Publicación — MediTime PRO
 
-Versión 3.0.0 · Plataformas: iOS (App Store) y Android (Google Play)
+> **Objetivo de release activo: Android / Google Play.**
+> La sección iOS se conserva como referencia pero **no es el target actual**.
+> Para el flujo completo de Android consulta primero `docs/ANDROID_PLAYSTORE_RELEASE.md`.
+
+Versión 3.0.0 · Target principal: Android (Google Play) · iOS: referencia futura
 
 ---
 
