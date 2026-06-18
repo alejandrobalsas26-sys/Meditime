@@ -1,5 +1,36 @@
 apply plugin: 'com.android.application'
 
+// Firma de release sin credenciales hardcodeadas.
+// Fuente 1: android/signing.properties (no versionado, ignorado por .gitignore).
+// Fuente 2: variables de entorno KEYSTORE_FILE / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD.
+// Sin credenciales: assembleDebug funciona; bundleRelease genera AAB sin firmar.
+// Ver docs/ANDROID_SIGNING.md y android/signing.properties.example
+def signingPropsFile = rootProject.file('signing.properties')
+def _keystoreFile    = null
+def _keystorePass    = null
+def _keyAlias        = null
+def _keyPass         = null
+
+if (signingPropsFile.canRead()) {
+    def props = new Properties()
+    props.load(new FileInputStream(signingPropsFile))
+    _keystoreFile = file(props['STORE_FILE'])
+    _keystorePass = props['STORE_PASSWORD']
+    _keyAlias     = props['KEY_ALIAS']
+    _keyPass      = props['KEY_PASSWORD']
+    println "✅ Firma de release: signing.properties"
+} else if (System.getenv('KEYSTORE_FILE')) {
+    _keystoreFile = file(System.getenv('KEYSTORE_FILE'))
+    _keystorePass = System.getenv('KEYSTORE_PASSWORD') ?: ''
+    _keyAlias     = System.getenv('KEY_ALIAS') ?: ''
+    _keyPass      = System.getenv('KEY_PASSWORD') ?: ''
+    println "✅ Firma de release: variables de entorno"
+} else {
+    println "⚠️  Sin credenciales de firma. bundleRelease producira un AAB sin firmar."
+    println "   Crea android/signing.properties desde android/signing.properties.example"
+    println "   Documentacion: docs/ANDROID_SIGNING.md"
+}
+
 android {
     namespace "com.meditime.pro"
     compileSdk rootProject.ext.compileSdkVersion
@@ -7,8 +38,9 @@ android {
         applicationId "com.meditime.pro"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // versionCode: esquema major x 10000 → 3.0.0 = 30000
+        versionCode 30000
+        versionName "3.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +48,21 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    if (_keystoreFile != null) {
+        signingConfigs {
+            release {
+                storeFile     _keystoreFile
+                storePassword _keystorePass
+                keyAlias      _keyAlias
+                keyPassword   _keyPass
+            }
+        }
+    }
     buildTypes {
         release {
+            if (_keystoreFile != null) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

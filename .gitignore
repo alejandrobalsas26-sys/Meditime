@@ -16,6 +16,8 @@ dist/
 *.jks
 *.apk
 *.aab
+signing.properties
+android/signing.properties
 android/app/build/
 *.log
 coverage/
