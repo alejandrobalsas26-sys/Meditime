@@ -485,6 +485,18 @@
     </div>
   </div>
 
+  <!-- Confirm Modal — reemplaza window.confirm() no fiable en WebViews -->
+  <div id="confirm-modal" class="modal-overlay" hidden role="alertdialog" aria-modal="true"
+    aria-labelledby="confirm-modal-msg">
+    <div class="modal-box">
+      <p id="confirm-modal-msg" class="modal-body" style="margin-bottom:20px"></p>
+      <div class="modal-actions">
+        <button id="btn-confirm-ok" class="btn-danger">Confirmar</button>
+        <button id="btn-confirm-cancel" class="btn-secondary" style="margin-top:0">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 

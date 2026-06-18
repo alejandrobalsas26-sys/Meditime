@@ -1706,15 +1706,19 @@ async function saveMedicineForm(e) {
 function deleteMedicine(id) {
   const med = state.medicines.find(m => m.id === id);
   if (!med) return;
-  if (!confirm('¿Eliminar ' + med.name + '? Esta acción no se puede deshacer.')) return;
-  state.medicines = state.medicines.filter(m => m.id !== id);
-  saveState();
-  syncNativeNotifications().catch(() => {});
-  playSound('error');
-  showToast(med.name + ' eliminado', 'warning');
-  speak(med.name + ' eliminado.');
-  renderMedicineList();
-  if (currentView === 'inicio') renderInicio();
+  showConfirmModal(
+    '¿Eliminar ' + med.name + '? Esta acción no se puede deshacer.',
+    () => {
+      state.medicines = state.medicines.filter(m => m.id !== id);
+      saveState();
+      syncNativeNotifications().catch(() => {});
+      playSound('error');
+      showToast(med.name + ' eliminado', 'warning');
+      speak(med.name + ' eliminado.');
+      renderMedicineList();
+      if (currentView === 'inicio') renderInicio();
+    }
+  );
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1981,8 +1985,10 @@ function makeSOSCall() {
   if (statusEl) statusEl.textContent = '¡Marcando ' + num + '!';
   speak('Llamando a emergencias ahora.');
   const btn = document.getElementById('sos-call-btn');
-  if (btn) btn.href = 'tel:' + num;
-  window.location.href = 'tel:' + num;
+  if (btn) {
+    btn.href = 'tel:' + num;
+    btn.click();   // más fiable que window.location.href en WebViews de Android
+  }
 }
 
 function cancelSOS() {
@@ -2188,7 +2194,8 @@ function saveSettings() {
   state.profile.doctorName  = sanitize(document.getElementById('s-doctor-name')?.value  || '');
   state.profile.doctorPhone = sanitize(document.getElementById('s-doctor-phone')?.value || '');
   state.settings.sosNumber  = sanitizePhone(document.getElementById('s-sos-number')?.value) || '911';
-  state.settings.snoozeMinutes = parseInt(document.getElementById('s-snooze-time')?.value || '10', 10);
+  const rawSnooze = parseInt(document.getElementById('s-snooze-time')?.value, 10);
+  state.settings.snoozeMinutes = Number.isFinite(rawSnooze) && rawSnooze > 0 ? rawSnooze : 10;
 
   state.settings.ttsEnabled   = getToggle('s-tts-toggle');
   state.settings.highContrast = getToggle('s-contrast-toggle');
@@ -2296,25 +2303,35 @@ function addContact() {
 function removeContact(id) {
   const c = state.contacts.find(x => x.id === id);
   if (!c) return;
-  if (!confirm('¿Eliminar el contacto ' + c.name + '?')) return;
-  state.contacts = state.contacts.filter(x => x.id !== id);
-  saveState();
-  renderContacts();
-  showToast(c.name + ' eliminado', 'warning');
+  showConfirmModal(
+    '¿Eliminar el contacto ' + c.name + '?',
+    () => {
+      state.contacts = state.contacts.filter(x => x.id !== id);
+      saveState();
+      renderContacts();
+      showToast(c.name + ' eliminado', 'warning');
+    }
+  );
 }
 
-async function clearAllData() {
-  if (!confirm('¿Borrar TODOS los datos de MediTime? Esta acción no se puede deshacer.')) return;
-  if (!confirm('Confirme: ¿está seguro de eliminar todos los medicamentos e historial?')) return;
-
-  if (_SecureStorage) {
-    try { await _SecureStorage.remove({ key: STORAGE_KEY }); } catch (_) {}
-  } else {
-    localStorage.removeItem(STORAGE_KEY);
-  }
-
-  showToast('Datos eliminados. Recargando…', 'warning');
-  setTimeout(() => location.reload(), 1500);
+function clearAllData() {
+  showConfirmModal(
+    '¿Borrar TODOS los datos de MediTime? Esta acción no se puede deshacer.',
+    () => {
+      showConfirmModal(
+        'Confirme: ¿está seguro de eliminar todos los medicamentos e historial?',
+        async () => {
+          if (_SecureStorage) {
+            try { await _SecureStorage.remove({ key: STORAGE_KEY }); } catch (_) {}
+          } else {
+            localStorage.removeItem(STORAGE_KEY);
+          }
+          showToast('Datos eliminados. Recargando…', 'warning');
+          setTimeout(() => location.reload(), 1500);
+        }
+      );
+    }
+  );
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2398,6 +2415,32 @@ function sanitizePhone(str) {
 
 function clearElement(el) {
   while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+// ── Confirm Modal ─────────────────────────────────────────────────────────────
+// Reemplaza window.confirm(), que es bloqueado silenciosamente en muchos
+// WebViews de Android y en modo PWA standalone. Acepta mensaje y dos callbacks.
+let _confirmCallback = null;
+let _cancelCallback  = null;
+
+function showConfirmModal(msg, onConfirm, onCancel) {
+  const modal = document.getElementById('confirm-modal');
+  const msgEl = document.getElementById('confirm-modal-msg');
+  if (!modal || !msgEl) { if (typeof onConfirm === 'function') onConfirm(); return; }
+  msgEl.textContent    = msg;
+  _confirmCallback     = onConfirm || null;
+  _cancelCallback      = onCancel  || null;
+  modal.hidden         = false;
+  document.getElementById('btn-confirm-cancel')?.focus();
+}
+
+function _resolveConfirmModal(accepted) {
+  const modal = document.getElementById('confirm-modal');
+  if (modal) modal.hidden = true;
+  const cb = accepted ? _confirmCallback : _cancelCallback;
+  _confirmCallback = null;
+  _cancelCallback  = null;
+  if (typeof cb === 'function') cb();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2563,11 +2606,19 @@ function wireEvents() {
   const btnShareDoctor = document.getElementById('btn-share-doctor');
   if (btnShareDoctor) btnShareDoctor.addEventListener('click', shareWithDoctor);
 
-  // Keyboard: close modal on Escape
+  // Confirm modal buttons
+  const btnConfirmOk     = document.getElementById('btn-confirm-ok');
+  const btnConfirmCancel = document.getElementById('btn-confirm-cancel');
+  if (btnConfirmOk)     btnConfirmOk.addEventListener('click',     () => _resolveConfirmModal(true));
+  if (btnConfirmCancel) btnConfirmCancel.addEventListener('click', () => _resolveConfirmModal(false));
+
+  // Keyboard: close modals on Escape
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
-      const modal = document.getElementById('alarm-modal');
-      if (modal && !modal.hidden) closeAlarmModal();
+      const alarmModal = document.getElementById('alarm-modal');
+      if (alarmModal && !alarmModal.hidden) { closeAlarmModal(); return; }
+      const confirmModal = document.getElementById('confirm-modal');
+      if (confirmModal && !confirmModal.hidden) _resolveConfirmModal(false);
     }
   });
 }
