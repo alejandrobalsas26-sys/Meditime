@@ -3,13 +3,23 @@
 ## Quality gates (locales)
 
 ```bash
-npm run check          # security:check + validate:pwa + test + build
-npm run icons          # genera iconos de la app
-npx cap sync android   # sincroniza web → proyecto Android
-cd android && ./gradlew assembleDebug
+npm run check                  # security:check + validate:pwa + test + build
+npm run icons                  # genera iconos de la app
+npm run android:release-check  # cap sync + assembleDebug (verifica el build)
+npm run android:bundle         # bundleRelease (requiere signing.properties)
 ```
 
-> Nota: si Gradle falla por bloqueos de archivos de OneDrive (node_modules /
+Scripts individuales:
+```bash
+npm run android:sync   # npx cap sync android
+npm run android:debug  # gradlew assembleDebug
+npm run android:bundle # gradlew bundleRelease (necesita credenciales de firma)
+```
+
+> **SDK:** compileSdk 35 / targetSdk 35 / minSdk 22. Requiere Android SDK 35
+> instalado en Android Studio (SDK Manager → Android 15 / API 35).
+
+> **Nota:** si Gradle falla por bloqueos de archivos de OneDrive (node_modules /
 > .gradle), ciérralos/pausa la sincronización y reintenta. No muevas el repo
 > automáticamente.
 

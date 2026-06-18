@@ -1,0 +1,14 @@
+# Plantilla para android/signing.properties
+# COPIA este archivo a android/signing.properties y rellena los valores reales.
+# signing.properties está en .gitignore → nunca se sube al repositorio.
+# Ver instrucciones completas en docs/ANDROID_SIGNING.md
+
+# Ruta al archivo .jks, relativa a android/app/ o absoluta.
+# Ejemplo relativo (si el .jks está en android/app/):
+STORE_FILE=meditime-release.jks
+# Ejemplo absoluto (fuera del repo, más seguro):
+# STORE_FILE=C:/Users/TuUsuario/keys/meditime-release.jks
+
+STORE_PASSWORD=cambia_esto_por_tu_contraseña_store
+KEY_ALIAS=meditime
+KEY_PASSWORD=cambia_esto_por_tu_contraseña_key
