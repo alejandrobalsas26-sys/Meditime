@@ -147,14 +147,23 @@ npm run android:sync
 
 ```bash
 npm run android:release-check
-# Equivale a: npx cap sync android && cd android && ./gradlew assembleDebug
+# Equivale a: npm run android:sync && npm run android:debug
+# (npx cap sync android + ./gradlew.bat --no-daemon assembleDebug)
+```
+
+### Generar APK debug para pruebas locales / WhatsApp
+
+```bash
+npm run android:whatsapp-apk
+# Flujo completo: sync + assembleDebug + exportar a dist/
+# Instrucciones: docs/ANDROID_LOCAL_APK_TESTING.md
 ```
 
 ### Generar AAB firmado
 
 ```bash
 npm run android:bundle
-# Equivale a: cd android && ./gradlew bundleRelease
+# Equivale a: cd android && ./gradlew.bat --no-daemon bundleRelease
 # Salida: android/app/build/outputs/bundle/release/app-release.aab
 ```
 
