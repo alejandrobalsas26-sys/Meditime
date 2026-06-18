@@ -11,9 +11,18 @@ npm run android:bundle         # bundleRelease (requiere signing.properties)
 
 Scripts individuales:
 ```bash
-npm run android:sync   # npx cap sync android
-npm run android:debug  # gradlew assembleDebug
-npm run android:bundle # gradlew bundleRelease (necesita credenciales de firma)
+npm run android:sync        # npx cap sync android
+npm run android:debug       # gradlew.bat --no-daemon assembleDebug
+npm run android:bundle      # gradlew.bat --no-daemon bundleRelease (necesita credenciales de firma)
+npm run android:export-apk  # exporta APK a dist/ con SHA-256 (ver docs/ANDROID_LOCAL_APK_TESTING.md)
+```
+
+Flujo completo para pruebas manuales (WhatsApp):
+```bash
+npm run android:whatsapp-apk
+# Equivale a: android:sync + android:debug + android:export-apk
+# Salida: dist/MediTime-PRO-v3.0.0-debug.apk  +  .sha256
+# Instrucciones de instalación: docs/ANDROID_LOCAL_APK_TESTING.md
 ```
 
 > **SDK:** compileSdk 35 / targetSdk 35 / minSdk 22. Requiere Android SDK 35

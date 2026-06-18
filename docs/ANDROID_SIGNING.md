@@ -87,7 +87,7 @@ Con `signing.properties` en su lugar:
 
 ```bash
 npm run android:bundle
-# Equivale a: cd android && ./gradlew bundleRelease
+# Equivale a: cd android && ./gradlew.bat --no-daemon bundleRelease
 # Salida: android/app/build/outputs/bundle/release/app-release.aab
 ```
 
@@ -101,8 +101,13 @@ Eso es el comportamiento esperado — revisa el paso 3.
 
 ```bash
 npm run android:debug
-# Equivale a: cd android && ./gradlew assembleDebug
+# Equivale a: cd android && ./gradlew.bat --no-daemon assembleDebug
 # No requiere signing.properties
+
+# Para exportar el APK debug a dist/ y enviarlo por WhatsApp:
+npm run android:export-apk   # solo export
+npm run android:whatsapp-apk # sync + build + export en un paso
+# Ver: docs/ANDROID_LOCAL_APK_TESTING.md
 ```
 
 ---
