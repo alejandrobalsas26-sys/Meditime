@@ -80,7 +80,7 @@ personal; **no sustituye el consejo médico y no cuenta con validación clínica
 - **Guía rápida** de cuatro pasos, en texto grande y sin tecnicismos
 - Navegación completa por teclado y atributos ARIA en toda la app
 
-### 🔒 Privacidad y seguridad
+###  Privacidad y seguridad
 - **100 % offline**: sin servidores, sin cuentas, sin rastreo
 - En Android: **bloqueo biométrico** (huella / Face ID) y almacenamiento cifrado (TEE)
 - En navegador: datos en `localStorage`, solo en tu dispositivo
@@ -116,7 +116,7 @@ Meditime/
 └── GUIA_PUBLICACION.md    # Guía completa para App Store / Play Store
 ```
 
-## 🚀 Instalación para desarrollo
+##  Instalación para desarrollo
 
 ### Requisitos
 - [Node.js](https://nodejs.org) 18 LTS o superior
@@ -137,10 +137,10 @@ npx serve MediTime_Web
 # → abrir http://localhost:3000
 ```
 
-> 💡 La app funciona abriendo `MediTime_Web/index.html` directamente, pero el
+>  La app funciona abriendo `MediTime_Web/index.html` directamente, pero el
 > Service Worker (modo offline) requiere servirla por HTTP — usa `npx serve`.
 
-## 📦 Compilar el APK (Android)
+##  Compilar el APK (Android)
 
 ```bash
 # 1. Sincronizar la web con el proyecto nativo
@@ -157,7 +157,7 @@ cd android
 
 El APK queda en `android/app/build/outputs/apk/debug/app-debug.apk`.
 
-> 📚 Para firmar el APK y publicarlo en Google Play o App Store, consulta
+>  Para firmar el APK y publicarlo en Google Play o App Store, consulta
 > [GUIA_PUBLICACION.md](GUIA_PUBLICACION.md).
 
 ## 🖥️ App de escritorio (legado)
@@ -166,7 +166,7 @@ La carpeta `MediTime_Mejorado/` contiene la versión original de escritorio en
 **Java/Swing**. Se conserva como referencia; el desarrollo activo es la app
 móvil/PWA. Para ejecutarla: abrir el módulo en IntelliJ IDEA y correr `Main.java`.
 
-## 🔐 Seguridad por diseño
+##  Seguridad por diseño
 
 MediTime se construye con la seguridad y la privacidad como principios, no como
 añadidos:
@@ -182,7 +182,7 @@ añadidos:
 
 Más detalle en [SECURITY.md](SECURITY.md) y [PRIVACY.md](PRIVACY.md).
 
-## ✅ Pruebas y Quality Gates
+##  Pruebas y Quality Gates
 
 El proyecto incluye comprobaciones automáticas que también corren en CI:
 
@@ -195,16 +195,6 @@ npm test               # Tests de validadores (node --test)
 
 > `npm run check` es la puerta de calidad: encadena `security:check`,
 > `validate:pwa`, `test` y `build`.
-
-## 📋 Checklist de Release Readiness
-
-- [ ] `npm run check` pasa sin errores.
-- [ ] Iconos generados (`npm run icons`) y presentes en `MediTime_Web/icons/`.
-- [ ] Capturas de pantalla añadidas en `docs/screenshots/`.
-- [ ] `npx cap sync android` ejecutado tras cambios en la web.
-- [ ] APK firmado para publicación (ver [GUIA_PUBLICACION.md](GUIA_PUBLICACION.md)).
-- [ ] Revisado [PRIVACY.md](PRIVACY.md) y [SECURITY.md](SECURITY.md).
-- [ ] Datos de contacto de privacidad/seguridad completados.
 
 > Lista detallada de pruebas y pasos en
 > [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
@@ -221,19 +211,6 @@ todavía requiere**:
   (ver [docs/PLAYSTORE_SCREENSHOTS.md](docs/PLAYSTORE_SCREENSHOTS.md)).
 
 > MediTime **no es un dispositivo médico certificado**.
-
-## 📊 Estado del proyecto
-
-**Versión 3.0.0 — en desarrollo activo** 🚧
-
-- [x] App web PWA completa y funcional
-- [x] Proyecto Android con Capacitor 6
-- [x] Alarmas nativas, biometría y almacenamiento seguro
-- [x] SOS con GPS y llamada de emergencia
-- [x] Accesibilidad: TTS, alto contraste, letra grande, doble toque
-- [ ] Iconos de la app (`MediTime_Web/icons/`) — en diseño
-- [ ] Capturas de pantalla para las tiendas
-- [ ] Publicación en Google Play
 
 ## 📄 Licencia
 
