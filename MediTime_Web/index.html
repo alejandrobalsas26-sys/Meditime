@@ -26,7 +26,7 @@
   <div id="splash-screen" role="status" aria-label="Cargando MediTime" aria-live="polite">
     <div class="splash-logo" aria-hidden="true">💊</div>
     <div class="splash-title">MediTime PRO</div>
-    <div class="splash-subtitle">Cargando...</div>
+    <div class="splash-subtitle" data-i18n="splash.loading">Cargando...</div>
   </div>
 
   <!-- Toast Notification -->
@@ -35,12 +35,12 @@
   <!-- Top Bar -->
   <header class="top-bar" role="banner">
     <div class="top-bar-left">
-      <span class="logo" aria-label="MediTime PRO inicio" aria-hidden="true">💊</span>
+      <span class="logo" data-i18n-aria-label="topbar.logoAriaLabel" aria-label="MediTime PRO inicio" aria-hidden="true">💊</span>
       <span class="logo-text">MediTime</span>
     </div>
     <div class="top-bar-right">
-      <span id="top-clock" class="top-clock" aria-live="off" aria-label="Hora actual"></span>
-      <button id="btn-tts" class="icon-btn" aria-label="Activar lectura de voz" aria-pressed="false" title="Voz">
+      <span id="top-clock" class="top-clock" aria-live="off" data-i18n-aria-label="topbar.clockAriaLabel" aria-label="Hora actual"></span>
+      <button id="btn-tts" class="icon-btn" data-i18n-aria-label="topbar.ttsAriaLabel" aria-label="Activar lectura de voz" aria-pressed="false" data-i18n-title="topbar.ttsTitle" title="Voz">
         <span aria-hidden="true">🔊</span>
       </button>
     </div>
@@ -50,7 +50,7 @@
   <main id="app-main" role="main">
 
     <!-- ═══════════════════════════════════ VIEW: INICIO ═══ -->
-    <section id="view-inicio" class="view active" aria-label="Inicio – resumen del día">
+    <section id="view-inicio" class="view active" data-i18n-aria-label="views.homeAriaLabel" aria-label="Inicio – resumen del día">
 
       <div class="greeting-block">
         <p id="greeting-text" class="greeting" aria-live="polite">Buenos días</p>
@@ -58,7 +58,7 @@
       </div>
 
       <!-- Donut progress ring -->
-      <div class="donut-container" role="img" aria-label="Progreso de medicamentos tomados hoy">
+      <div class="donut-container" role="img" data-i18n-aria-label="home.progressAriaLabel" aria-label="Progreso de medicamentos tomados hoy">
         <svg class="donut-svg" viewBox="0 0 120 120" aria-hidden="true">
           <circle class="donut-track" cx="60" cy="60" r="50" />
           <circle id="donut-progress" class="donut-bar" cx="60" cy="60" r="50" stroke-dasharray="314.16"
@@ -66,146 +66,146 @@
         </svg>
         <div class="donut-label">
           <span id="progress-percent" class="donut-percent">0%</span>
-          <span class="donut-sub">Completado</span>
+          <span class="donut-sub" data-i18n="home.completed">Completado</span>
         </div>
       </div>
 
-      <p id="today-summary" class="summary-text" aria-live="polite">Cargando medicamentos...</p>
+      <p id="today-summary" class="summary-text" aria-live="polite" data-i18n="home.loadingMeds">Cargando medicamentos...</p>
 
       <!-- Próxima alarma -->
-      <div id="next-alarm-card" class="card next-alarm-card" aria-label="Próxima alarma">
+      <div id="next-alarm-card" class="card next-alarm-card" data-i18n-aria-label="home.nextAlarmAriaLabel" aria-label="Próxima alarma">
         <span class="next-alarm-icon" aria-hidden="true">⏰</span>
         <div>
-          <p class="next-alarm-label">Próxima dosis</p>
+          <p class="next-alarm-label" data-i18n="home.nextDose">Próxima dosis</p>
           <p id="next-alarm-time" class="next-alarm-time">—</p>
         </div>
       </div>
 
       <!-- Alarmas pendientes del día -->
-      <div id="today-alarms" class="today-alarms" aria-label="Alarmas de hoy" aria-live="polite"></div>
+      <div id="today-alarms" class="today-alarms" data-i18n-aria-label="home.todayAlarmsAriaLabel" aria-label="Alarmas de hoy" aria-live="polite"></div>
 
     </section>
 
     <!-- ═══════════════════════════════════ VIEW: MEDICINAS ═══ -->
-    <section id="view-medicinas" class="view" aria-label="Lista de medicamentos" hidden>
+    <section id="view-medicinas" class="view" data-i18n-aria-label="views.medsAriaLabel" aria-label="Lista de medicamentos" hidden>
 
       <div class="view-header">
-        <h2>Mis Medicamentos</h2>
-        <button id="btn-add-med" class="btn-fab" aria-label="Agregar nuevo medicamento">
+        <h2 data-i18n="meds.title">Mis Medicamentos</h2>
+        <button id="btn-add-med" class="btn-fab" data-i18n-aria-label="meds.addAriaLabel" aria-label="Agregar nuevo medicamento">
           <span aria-hidden="true">＋</span>
         </button>
       </div>
 
-      <div id="med-list-container" aria-live="polite" aria-label="Lista de medicamentos guardados"></div>
+      <div id="med-list-container" aria-live="polite" data-i18n-aria-label="meds.listAriaLabel" aria-label="Lista de medicamentos guardados"></div>
 
       <!-- Formulario agregar/editar -->
-      <div id="med-form-panel" class="form-panel" hidden aria-label="Formulario de medicamento">
-        <h3 id="form-title">Agregar Medicamento</h3>
+      <div id="med-form-panel" class="form-panel" hidden data-i18n-aria-label="form.panelAriaLabel" aria-label="Formulario de medicamento">
+        <h3 id="form-title" data-i18n="form.addTitle">Agregar Medicamento</h3>
         <form id="med-form" novalidate>
           <input type="hidden" id="edit-med-id">
 
-          <label for="f-name">Nombre del medicamento <span aria-hidden="true">*</span></label>
-          <input type="text" id="f-name" name="nombre" placeholder="Ej: Metformina" required autocomplete="off"
+          <label for="f-name"><span data-i18n="form.nameLabel">Nombre del medicamento</span> <span aria-hidden="true">*</span></label>
+          <input type="text" id="f-name" name="nombre" data-i18n-placeholder="form.namePlaceholder" placeholder="Ej: Metformina" required autocomplete="off"
             maxlength="60" aria-required="true">
 
-          <label for="f-dose">Dosis</label>
-          <input type="text" id="f-dose" name="dosis" placeholder="Ej: 500 mg" maxlength="40" autocomplete="off">
+          <label for="f-dose" data-i18n="form.doseLabel">Dosis</label>
+          <input type="text" id="f-dose" name="dosis" data-i18n-placeholder="form.dosePlaceholder" placeholder="Ej: 500 mg" maxlength="40" autocomplete="off">
 
-          <label for="f-notes">Instrucciones / Notas</label>
-          <textarea id="f-notes" name="notas" placeholder="Ej: Tomar con el desayuno" rows="2"
+          <label for="f-notes" data-i18n="form.notesLabel">Instrucciones / Notas</label>
+          <textarea id="f-notes" name="notas" data-i18n-placeholder="form.notesPlaceholder" placeholder="Ej: Tomar con el desayuno" rows="2"
             maxlength="200"></textarea>
 
-          <label id="when-label">¿Cuándo toma esta medicina? <span aria-hidden="true">*</span></label>
+          <label id="when-label"><span data-i18n="form.whenLabel">¿Cuándo toma esta medicina?</span> <span aria-hidden="true">*</span></label>
 
           <!-- Botones de rutina: un toque añade la hora típica de esa franja -->
           <div class="time-presets" role="group" aria-labelledby="when-label">
-            <button type="button" class="time-preset-btn" data-time="08:00" data-label="Mañana"
-              aria-label="Agregar Mañana, 8 de la mañana">
+            <button type="button" class="time-preset-btn" data-time="08:00" data-preset="morning"
+              data-i18n-aria-label="form.presetMorningAriaLabel" aria-label="Agregar Mañana, 8 de la mañana">
               <span class="time-preset-emoji" aria-hidden="true">🌅</span>
-              <span class="time-preset-name">Mañana</span>
+              <span class="time-preset-name" data-i18n="form.presetMorningName">Mañana</span>
               <span class="time-preset-time">08:00</span>
             </button>
-            <button type="button" class="time-preset-btn" data-time="12:00" data-label="Mediodía"
-              aria-label="Agregar Mediodía, 12 del mediodía">
+            <button type="button" class="time-preset-btn" data-time="12:00" data-preset="noon"
+              data-i18n-aria-label="form.presetNoonAriaLabel" aria-label="Agregar Mediodía, 12 del mediodía">
               <span class="time-preset-emoji" aria-hidden="true">☀️</span>
-              <span class="time-preset-name">Mediodía</span>
+              <span class="time-preset-name" data-i18n="form.presetNoonName">Mediodía</span>
               <span class="time-preset-time">12:00</span>
             </button>
-            <button type="button" class="time-preset-btn" data-time="18:00" data-label="Tarde"
-              aria-label="Agregar Tarde, 6 de la tarde">
+            <button type="button" class="time-preset-btn" data-time="18:00" data-preset="afternoon"
+              data-i18n-aria-label="form.presetAfternoonAriaLabel" aria-label="Agregar Tarde, 6 de la tarde">
               <span class="time-preset-emoji" aria-hidden="true">🌇</span>
-              <span class="time-preset-name">Tarde</span>
+              <span class="time-preset-name" data-i18n="form.presetAfternoonName">Tarde</span>
               <span class="time-preset-time">18:00</span>
             </button>
-            <button type="button" class="time-preset-btn" data-time="21:00" data-label="Noche"
-              aria-label="Agregar Noche, 9 de la noche">
+            <button type="button" class="time-preset-btn" data-time="21:00" data-preset="night"
+              data-i18n-aria-label="form.presetNightAriaLabel" aria-label="Agregar Noche, 9 de la noche">
               <span class="time-preset-emoji" aria-hidden="true">🌙</span>
-              <span class="time-preset-name">Noche</span>
+              <span class="time-preset-name" data-i18n="form.presetNightName">Noche</span>
               <span class="time-preset-time">21:00</span>
             </button>
-            <button type="button" class="time-preset-btn" data-time="22:00" data-label="Antes de dormir"
-              aria-label="Agregar Antes de dormir, 10 de la noche">
+            <button type="button" class="time-preset-btn" data-time="22:00" data-preset="bedtime"
+              data-i18n-aria-label="form.presetBedtimeAriaLabel" aria-label="Agregar Antes de dormir, 10 de la noche">
               <span class="time-preset-emoji" aria-hidden="true">🛏️</span>
-              <span class="time-preset-name">Antes de dormir</span>
+              <span class="time-preset-name" data-i18n="form.presetBedtimeName">Antes de dormir</span>
               <span class="time-preset-time">22:00</span>
             </button>
           </div>
 
           <!-- Selector manual sencillo con + / − -->
-          <div class="time-simple" role="group" aria-label="Elegir una hora con más y menos">
-            <div id="time-preview" class="time-preview" aria-live="polite" aria-label="Hora elegida">08:30</div>
+          <div class="time-simple" role="group" data-i18n-aria-label="form.timeSimpleAriaLabel" aria-label="Elegir una hora con más y menos">
+            <div id="time-preview" class="time-preview" aria-live="polite" data-i18n-aria-label="form.timePreviewAriaLabel" aria-label="Hora elegida">08:30</div>
             <div class="time-stepper-row">
-              <span class="time-stepper-label">Hora</span>
-              <button type="button" id="btn-hour-minus" class="time-step-btn" aria-label="Una hora menos">−</button>
+              <span class="time-stepper-label" data-i18n="form.hourLabel">Hora</span>
+              <button type="button" id="btn-hour-minus" class="time-step-btn" data-i18n-aria-label="form.hourMinusAriaLabel" aria-label="Una hora menos">−</button>
               <span id="manual-hour-val" class="time-stepper-val" aria-hidden="true">08</span>
-              <button type="button" id="btn-hour-plus" class="time-step-btn" aria-label="Una hora más">＋</button>
+              <button type="button" id="btn-hour-plus" class="time-step-btn" data-i18n-aria-label="form.hourPlusAriaLabel" aria-label="Una hora más">＋</button>
             </div>
             <div class="time-stepper-row">
-              <span class="time-stepper-label">Minutos</span>
-              <button type="button" id="btn-min-minus" class="time-step-btn" aria-label="Cinco minutos menos">−5</button>
+              <span class="time-stepper-label" data-i18n="form.minutesLabel">Minutos</span>
+              <button type="button" id="btn-min-minus" class="time-step-btn" data-i18n-aria-label="form.minMinusAriaLabel" aria-label="Cinco minutos menos">−5</button>
               <span id="manual-min-val" class="time-stepper-val" aria-hidden="true">30</span>
-              <button type="button" id="btn-min-plus" class="time-step-btn" aria-label="Cinco minutos más">+5</button>
+              <button type="button" id="btn-min-plus" class="time-step-btn" data-i18n-aria-label="form.minPlusAriaLabel" aria-label="Cinco minutos más">+5</button>
             </div>
             <button type="button" id="btn-add-manual-time" class="btn-outline time-add-manual"
-              aria-label="Agregar esta hora">Agregar esta hora</button>
+              data-i18n-aria-label="form.addManualTime" aria-label="Agregar esta hora" data-i18n="form.addManualTime">Agregar esta hora</button>
           </div>
 
-          <p class="times-added-label">Horas agregadas:</p>
+          <p class="times-added-label" data-i18n="form.timesAddedLabel">Horas agregadas:</p>
           <div id="times-container" class="times-container" aria-live="polite"
-            aria-label="Horas agregadas"></div>
+            data-i18n-aria-label="form.timesAddedAriaLabel" aria-label="Horas agregadas"></div>
 
           <!-- Opción avanzada: escribir la hora exacta con el reloj del teléfono -->
           <details class="time-advanced">
-            <summary>Opciones avanzadas</summary>
-            <button type="button" id="btn-add-time" class="btn-outline" aria-label="Agregar la hora actual">
-              <span aria-hidden="true">＋</span> Agregar la hora actual
+            <summary data-i18n="form.advancedSummary">Opciones avanzadas</summary>
+            <button type="button" id="btn-add-time" class="btn-outline" data-i18n-aria-label="form.addCurrentTimeAriaLabel" aria-label="Agregar la hora actual">
+              <span aria-hidden="true">＋</span> <span data-i18n="form.addCurrentTimeLabel">Agregar la hora actual</span>
             </button>
-            <p class="time-advanced-hint">
+            <p class="time-advanced-hint" data-i18n="form.advancedHint">
               Cada hora agregada aparece arriba. Toca la hora para escribirla exacta o ✕ para quitarla.
             </p>
           </details>
 
-          <label for="f-freq">Frecuencia</label>
-          <select id="f-freq" name="frecuencia" aria-label="Frecuencia de toma">
-            <option value="diario">Todos los días</option>
-            <option value="semana">Días de semana (Lun–Vie)</option>
-            <option value="finde">Fines de semana (Sáb–Dom)</option>
-            <option value="alterno">Días alternos</option>
+          <label for="f-freq" data-i18n="form.freqLabel">Frecuencia</label>
+          <select id="f-freq" name="frecuencia" data-i18n-aria-label="form.freqAriaLabel" aria-label="Frecuencia de toma">
+            <option value="diario" data-i18n="form.freqDiario">Todos los días</option>
+            <option value="semana" data-i18n="form.freqSemana">Días de semana (Lun–Vie)</option>
+            <option value="finde" data-i18n="form.freqFinde">Fines de semana (Sáb–Dom)</option>
+            <option value="alterno" data-i18n="form.freqAlterno">Días alternos</option>
           </select>
 
-          <label for="f-priority">Prioridad</label>
-          <select id="f-priority" name="prioridad" aria-label="Nivel de prioridad">
-            <option value="normal">Normal</option>
-            <option value="urgente">🚨 Urgente</option>
+          <label for="f-priority" data-i18n="form.priorityLabel">Prioridad</label>
+          <select id="f-priority" name="prioridad" data-i18n-aria-label="form.priorityAriaLabel" aria-label="Nivel de prioridad">
+            <option value="normal" data-i18n="form.priorityNormal">Normal</option>
+            <option value="urgente" data-i18n="form.priorityUrgent">🚨 Urgente</option>
           </select>
 
-          <label for="f-color">Color de etiqueta</label>
-          <div class="color-picker" id="f-color" role="radiogroup" aria-label="Color de etiqueta"></div>
+          <label for="f-color" data-i18n="form.colorLabel">Color de etiqueta</label>
+          <div class="color-picker" id="f-color" role="radiogroup" data-i18n-aria-label="form.colorLabel" aria-label="Color de etiqueta"></div>
 
           <div class="form-actions">
             <button type="button" id="btn-cancel-form" class="btn-secondary"
-              aria-label="Cancelar y cerrar formulario">Cancelar</button>
-            <button type="submit" class="btn-primary" aria-label="Guardar medicamento">Guardar</button>
+              data-i18n-aria-label="form.cancelAriaLabel" aria-label="Cancelar y cerrar formulario" data-i18n="common.cancel">Cancelar</button>
+            <button type="submit" class="btn-primary" data-i18n-aria-label="form.saveAriaLabel" aria-label="Guardar medicamento" data-i18n="common.save">Guardar</button>
           </div>
         </form>
       </div>
@@ -213,21 +213,21 @@
     </section>
 
     <!-- ═══════════════════════════════════ VIEW: SOS ═══ -->
-    <section id="view-sos" class="view" aria-label="Pantalla de emergencia SOS" hidden>
+    <section id="view-sos" class="view" data-i18n-aria-label="views.sosAriaLabel" aria-label="Pantalla de emergencia SOS" hidden>
 
-      <div class="sos-panel" role="alertdialog" aria-modal="true" aria-label="Emergencia activa">
+      <div class="sos-panel" role="alertdialog" aria-modal="true" data-i18n-aria-label="sos.activeAriaLabel" aria-label="Emergencia activa">
         <div class="sos-header">
           <span class="sos-icon" aria-hidden="true">🚨</span>
-          <h2>EMERGENCIA</h2>
+          <h2 data-i18n="sos.title">EMERGENCIA</h2>
           <span class="sos-icon" aria-hidden="true">🚨</span>
         </div>
 
-        <p id="sos-practice-banner" class="sos-practice-banner" hidden>
+        <p id="sos-practice-banner" class="sos-practice-banner" hidden data-i18n="sos.practiceBanner">
           Modo práctica: no se realizará ninguna llamada.
         </p>
 
-        <p class="sos-instruction">Tu ubicación GPS:</p>
-        <div id="sos-location" class="sos-location-box" aria-live="polite" aria-label="Coordenadas GPS">
+        <p class="sos-instruction" data-i18n="sos.yourLocation">Tu ubicación GPS:</p>
+        <div id="sos-location" class="sos-location-box" aria-live="polite" data-i18n-aria-label="sos.gpsCoordsAriaLabel" aria-label="Coordenadas GPS">
           Obteniendo señal GPS...
         </div>
 
@@ -237,11 +237,11 @@
         </div>
 
         <a id="sos-call-btn" href="#" class="btn-sos-call" role="button"
-          aria-label="Llamar al número de emergencia ahora">
-          <span aria-hidden="true">📞</span> LLAMAR AHORA
+          data-i18n-aria-label="sos.callAriaLabel" aria-label="Llamar al número de emergencia ahora">
+          <span aria-hidden="true">📞</span> <span data-i18n="sos.callButton">LLAMAR AHORA</span>
         </a>
 
-        <button id="btn-cancel-sos" class="btn-cancel-sos" aria-label="Cancelar llamada de emergencia">
+        <button id="btn-cancel-sos" class="btn-cancel-sos" data-i18n-aria-label="sos.cancelAriaLabel" aria-label="Cancelar llamada de emergencia" data-i18n="sos.cancelButton">
           Cancelar emergencia
         </button>
       </div>
@@ -249,79 +249,89 @@
     </section>
 
     <!-- ═══════════════════════════════════ VIEW: HISTORIAL ═══ -->
-    <section id="view-historial" class="view" aria-label="Historial de medicamentos" hidden>
+    <section id="view-historial" class="view" data-i18n-aria-label="views.historyAriaLabel" aria-label="Historial de medicamentos" hidden>
 
       <!-- Encabezado del informe: solo visible al imprimir (lo rellena app.js) -->
       <div id="print-header" class="print-only" aria-hidden="true"></div>
 
       <div class="view-header">
-        <h2>Historial</h2>
-        <span class="subtitle">Últimos 30 días</span>
+        <h2 data-i18n="history.title">Historial</h2>
+        <span id="history-subtitle" class="subtitle">Últimos 30 días</span>
       </div>
 
-      <div id="history-stats" class="history-stats" aria-label="Estadísticas de adherencia"></div>
+      <div id="history-stats" class="history-stats" data-i18n-aria-label="history.statsAriaLabel" aria-label="Estadísticas de adherencia"></div>
 
       <button id="btn-share-doctor" class="btn-outline btn-share-doctor"
-        aria-label="Compartir historial con mi médico. Abre el diálogo de impresión o guardar PDF">
-        <span aria-hidden="true">🖨️</span> Compartir con mi médico
+        data-i18n-aria-label="history.shareAriaLabel" aria-label="Compartir historial con mi médico. Abre el diálogo de impresión o guardar PDF">
+        <span aria-hidden="true">🖨️</span> <span data-i18n="history.shareLabel">Compartir con mi médico</span>
       </button>
 
-      <div id="history-list" class="history-list" aria-live="polite" aria-label="Registros del historial"></div>
+      <div id="history-list" class="history-list" aria-live="polite" data-i18n-aria-label="history.listAriaLabel" aria-label="Registros del historial"></div>
 
     </section>
 
     <!-- ═══════════════════════════════════ VIEW: AJUSTES ═══ -->
-    <section id="view-ajustes" class="view" aria-label="Ajustes de la aplicación" hidden>
+    <section id="view-ajustes" class="view" data-i18n-aria-label="views.settingsAriaLabel" aria-label="Ajustes de la aplicación" hidden>
 
-      <h2>Ajustes</h2>
+      <h2 data-i18n="settings.title">Ajustes</h2>
+
+      <!-- Idioma / Language -->
+      <div class="settings-group" aria-labelledby="group-idioma">
+        <h3 id="group-idioma" class="settings-group-title" data-i18n="settings.languageTitle">Idioma / Language</h3>
+        <select id="s-language" data-i18n-aria-label="settings.languageAriaLabel" aria-label="Elegir idioma de la aplicación">
+          <option value="auto" data-i18n="settings.languageAuto">Automático (idioma del dispositivo)</option>
+          <option value="es" data-i18n="settings.languageEs">Español</option>
+          <option value="en" data-i18n="settings.languageEn">English</option>
+        </select>
+      </div>
 
       <!-- Guía rápida -->
       <div class="settings-group" aria-labelledby="group-guia">
-        <h3 id="group-guia" class="settings-group-title">Guía rápida</h3>
+        <h3 id="group-guia" class="settings-group-title" data-i18n="settings.guideTitle">Guía rápida</h3>
         <ol class="quick-guide">
-          <li>Agrega tus medicinas.</li>
-          <li>Cuando suene la alarma, toca Tomado, Posponer u Omitir.</li>
-          <li>Si necesitas ayuda, mantén SOS presionado 2 segundos.</li>
-          <li>Puedes practicar antes de usarlo de verdad.</li>
+          <li data-i18n="settings.guideStep1">Agrega tus medicinas.</li>
+          <li data-i18n="settings.guideStep2">Cuando suene la alarma, toca Tomado, Posponer u Omitir.</li>
+          <li data-i18n="settings.guideStep3">Si necesitas ayuda, mantén SOS presionado 2 segundos.</li>
+          <li data-i18n="settings.guideStep4">Puedes practicar antes de usarlo de verdad.</li>
         </ol>
       </div>
 
       <!-- Practicar sin riesgo -->
       <div class="settings-group" aria-labelledby="group-practica">
-        <h3 id="group-practica" class="settings-group-title">Practicar sin riesgo</h3>
-        <p class="setting-hint">Practica con calma. Nada de esto guarda datos ni hace llamadas.</p>
+        <h3 id="group-practica" class="settings-group-title" data-i18n="settings.practiceTitle">Practicar sin riesgo</h3>
+        <p class="setting-hint" data-i18n="settings.practiceHint">Practica con calma. Nada de esto guarda datos ni hace llamadas.</p>
         <button type="button" id="btn-practice-alarm" class="btn-outline practice-btn"
-          aria-label="Practicar alarma sin guardar nada">
-          <span aria-hidden="true">⏰</span> Practicar alarma
+          data-i18n-aria-label="settings.practiceAlarmAriaLabel" aria-label="Practicar alarma sin guardar nada">
+          <span aria-hidden="true">⏰</span> <span data-i18n="settings.practiceAlarmLabel">Practicar alarma</span>
         </button>
         <button type="button" id="btn-practice-sos" class="btn-outline practice-btn"
-          aria-label="Practicar SOS sin llamar a nadie">
-          <span aria-hidden="true">🆘</span> Practicar SOS sin llamar
+          data-i18n-aria-label="settings.practiceSOSAriaLabel" aria-label="Practicar SOS sin llamar a nadie">
+          <span aria-hidden="true">🆘</span> <span data-i18n="settings.practiceSOSLabel">Practicar SOS sin llamar</span>
         </button>
       </div>
 
       <!-- Perfil del paciente -->
       <div class="settings-group" aria-labelledby="group-perfil">
-        <h3 id="group-perfil" class="settings-group-title">Perfil del Paciente</h3>
-        <label for="s-patient-name">Tu nombre</label>
-        <input type="text" id="s-patient-name" placeholder="Ej: Carmen López" maxlength="60">
-        <label for="s-patient-age">Edad</label>
-        <input type="number" id="s-patient-age" placeholder="Ej: 72" min="1" max="130">
-        <label for="s-doctor-name">Nombre del médico</label>
-        <input type="text" id="s-doctor-name" placeholder="Ej: Dr. García" maxlength="60">
-        <label for="s-doctor-phone">Teléfono del médico</label>
-        <input type="tel" id="s-doctor-phone" placeholder="Ej: 555-1234">
+        <h3 id="group-perfil" class="settings-group-title" data-i18n="settings.profileTitle">Perfil del Paciente</h3>
+        <label for="s-patient-name" data-i18n="settings.patientNameLabel">Tu nombre</label>
+        <input type="text" id="s-patient-name" data-i18n-placeholder="settings.patientNamePlaceholder" placeholder="Ej: Carmen López" maxlength="60">
+        <label for="s-patient-age" data-i18n="settings.patientAgeLabel">Edad</label>
+        <input type="number" id="s-patient-age" data-i18n-placeholder="settings.patientAgePlaceholder" placeholder="Ej: 72" min="1" max="130">
+        <label for="s-doctor-name" data-i18n="settings.doctorNameLabel">Nombre del médico</label>
+        <input type="text" id="s-doctor-name" data-i18n-placeholder="settings.doctorNamePlaceholder" placeholder="Ej: Dr. García" maxlength="60">
+        <label for="s-doctor-phone" data-i18n="settings.doctorPhoneLabel">Teléfono del médico</label>
+        <input type="tel" id="s-doctor-phone" data-i18n-placeholder="settings.doctorPhonePlaceholder" placeholder="Ej: 555-1234">
       </div>
 
       <!-- Contactos de emergencia -->
       <div class="settings-group" aria-labelledby="group-contactos">
-        <h3 id="group-contactos" class="settings-group-title">Contactos de Emergencia</h3>
-        <div id="contacts-list" aria-label="Lista de contactos de emergencia" aria-live="polite"></div>
+        <h3 id="group-contactos" class="settings-group-title" data-i18n="settings.contactsTitle">Contactos de Emergencia</h3>
+        <div id="contacts-list" data-i18n-aria-label="settings.contactsListAriaLabel" aria-label="Lista de contactos de emergencia" aria-live="polite"></div>
         <div class="contact-add-row">
-          <input type="text" id="s-contact-name" placeholder="Nombre del contacto" maxlength="60"
-            aria-label="Nombre del nuevo contacto">
-          <input type="tel" id="s-contact-phone" placeholder="Teléfono" aria-label="Teléfono del nuevo contacto">
-          <button id="btn-add-contact" class="btn-outline" aria-label="Agregar contacto">
+          <input type="text" id="s-contact-name" data-i18n-placeholder="settings.contactNamePlaceholder" placeholder="Nombre del contacto" maxlength="60"
+            data-i18n-aria-label="settings.contactNameAriaLabel" aria-label="Nombre del nuevo contacto">
+          <input type="tel" id="s-contact-phone" data-i18n-placeholder="settings.contactPhonePlaceholder" placeholder="Teléfono" data-i18n-aria-label="settings.contactPhoneAriaLabel" aria-label="Teléfono del nuevo contacto">
+          <button id="btn-add-contact" class="btn-outline" data-i18n-aria-label="settings.addContactAriaLabel" aria-label="Agregar contacto">
             <span aria-hidden="true">＋</span>
           </button>
         </div>
@@ -329,107 +339,107 @@
 
       <!-- Número SOS -->
       <div class="settings-group" aria-labelledby="group-sos">
-        <h3 id="group-sos" class="settings-group-title">Número SOS de Emergencia</h3>
-        <label for="s-sos-number">Número a marcar en SOS</label>
-        <input type="tel" id="s-sos-number" placeholder="Ej: 911" aria-label="Número de emergencia SOS">
+        <h3 id="group-sos" class="settings-group-title" data-i18n="settings.sosNumberTitle">Número SOS de Emergencia</h3>
+        <label for="s-sos-number" data-i18n="settings.sosNumberLabel">Número a marcar en SOS</label>
+        <input type="tel" id="s-sos-number" data-i18n-placeholder="settings.sosNumberPlaceholder" placeholder="Ej: 911" data-i18n-aria-label="settings.sosNumberAriaLabel" aria-label="Número de emergencia SOS">
       </div>
 
       <!-- Recordatorios y notificaciones -->
       <div class="settings-group" aria-labelledby="group-notif">
-        <h3 id="group-notif" class="settings-group-title">Notificaciones</h3>
+        <h3 id="group-notif" class="settings-group-title" data-i18n="settings.notifTitle">Notificaciones</h3>
         <div class="toggle-row">
-          <label for="s-notif-toggle" class="toggle-label">Activar notificaciones</label>
+          <label for="s-notif-toggle" class="toggle-label" data-i18n="settings.notifToggleLabel">Activar notificaciones</label>
           <button id="s-notif-toggle" class="toggle-btn" role="switch" aria-checked="false"
-            aria-label="Activar o desactivar notificaciones">
+            data-i18n-aria-label="settings.notifToggleAriaLabel" aria-label="Activar o desactivar notificaciones">
             <span class="toggle-thumb"></span>
           </button>
         </div>
-        <label for="s-snooze-time">Tiempo de posponer</label>
-        <select id="s-snooze-time" aria-label="Minutos de posponer alarma">
-          <option value="5">5 minutos</option>
-          <option value="10" selected>10 minutos</option>
-          <option value="15">15 minutos</option>
-          <option value="30">30 minutos</option>
+        <label for="s-snooze-time" data-i18n="settings.snoozeLabel">Tiempo de posponer</label>
+        <select id="s-snooze-time" data-i18n-aria-label="settings.snoozeAriaLabel" aria-label="Minutos de posponer alarma">
+          <option value="5" data-i18n="settings.snooze5">5 minutos</option>
+          <option value="10" selected data-i18n="settings.snooze10">10 minutos</option>
+          <option value="15" data-i18n="settings.snooze15">15 minutos</option>
+          <option value="30" data-i18n="settings.snooze30">30 minutos</option>
         </select>
-        <p class="setting-hint">Para que las alarmas suenen con la pantalla bloqueada:</p>
+        <p class="setting-hint" data-i18n="settings.notifHint1">Para que las alarmas suenen con la pantalla bloqueada:</p>
         <ol class="setting-steps">
-          <li>Permite las notificaciones.</li>
-          <li>Activa el sonido del canal <b>Alarmas de medicamentos</b> en Ajustes de Android → Notificaciones → MediTime.</li>
-          <li>Permite alarmas exactas si Android lo solicita (Ajustes → Aplicaciones → Alarmas y recordatorios).</li>
-          <li>En Android, ve a Ajustes → Aplicaciones → MediTime → Batería y selecciona <b>Sin restricciones</b>.</li>
-          <li>Samsung: Ajustes → Aplicaciones → MediTime PRO → Batería → Sin restricciones.</li>
+          <li data-i18n="settings.notifStep1">Permite las notificaciones.</li>
+          <li><span data-i18n="settings.notifStep2a">Activa el sonido del canal </span><b data-i18n="settings.notifStep2b">Alarmas de medicamentos</b><span data-i18n="settings.notifStep2c"> en Ajustes de Android → Notificaciones → MediTime.</span></li>
+          <li data-i18n="settings.notifStep3">Permite alarmas exactas si Android lo solicita (Ajustes → Aplicaciones → Alarmas y recordatorios).</li>
+          <li><span data-i18n="settings.notifStep4a">En Android, ve a Ajustes → Aplicaciones → MediTime → Batería y selecciona </span><b data-i18n="settings.notifStep4b">Sin restricciones</b><span data-i18n="settings.notifStep4c">.</span></li>
+          <li><span data-i18n="settings.notifStep5a">Samsung: Ajustes → Aplicaciones → MediTime PRO → Batería → </span><b data-i18n="settings.notifStep5b">Sin restricciones</b><span data-i18n="settings.notifStep5c">.</span></li>
         </ol>
-        <p class="setting-hint">Si no suena con la pantalla apagada, pon MediTime como batería sin restricciones y activa el sonido del canal Alarmas de medicamentos en Android.</p>
+        <p class="setting-hint" data-i18n="settings.notifHint2">Si no suena con la pantalla apagada, pon MediTime como batería sin restricciones y activa el sonido del canal Alarmas de medicamentos en Android.</p>
         <button id="s-exact-alarm-btn" class="btn-secondary" type="button"
-          aria-label="Revisar y activar las alarmas exactas de Android">
+          data-i18n-aria-label="settings.exactAlarmAriaLabel" aria-label="Revisar y activar las alarmas exactas de Android" data-i18n="settings.exactAlarmLabel">
           Revisar alarmas exactas
         </button>
         <button id="btn-native-alarm-test" class="btn-secondary" type="button"
-          aria-label="Probar alarma nativa de Android en 3 minutos" style="margin-top:8px">
+          data-i18n-aria-label="settings.testAlarmAriaLabel" aria-label="Probar alarma nativa de Android en 3 minutos" style="margin-top:8px" data-i18n="settings.testAlarmLabel">
           Probar alarma nativa en 3 minutos
         </button>
         <button id="btn-notif-diagnostics" class="btn-outline" type="button"
-          aria-label="Ver diagnóstico de alarmas pendientes" style="margin-top:6px">
+          data-i18n-aria-label="settings.diagnosticsAriaLabel" aria-label="Ver diagnóstico de alarmas pendientes" style="margin-top:6px" data-i18n="settings.diagnosticsLabel">
           Ver diagnóstico de alarmas
         </button>
       </div>
 
       <!-- Accesibilidad -->
       <div class="settings-group" aria-labelledby="group-a11y">
-        <h3 id="group-a11y" class="settings-group-title">Accesibilidad</h3>
+        <h3 id="group-a11y" class="settings-group-title" data-i18n="settings.a11yTitle">Accesibilidad</h3>
         <div class="toggle-row">
-          <label for="s-tts-toggle" class="toggle-label">Lectura por voz (TTS)</label>
+          <label for="s-tts-toggle" class="toggle-label" data-i18n="settings.ttsToggleLabel">Lectura por voz (TTS)</label>
           <button id="s-tts-toggle" class="toggle-btn" role="switch" aria-checked="false"
-            aria-label="Activar o desactivar lectura de voz">
+            data-i18n-aria-label="settings.ttsToggleAriaLabel" aria-label="Activar o desactivar lectura de voz">
             <span class="toggle-thumb"></span>
           </button>
         </div>
         <div class="toggle-row">
-          <label for="s-contrast-toggle" class="toggle-label">Alto contraste</label>
+          <label for="s-contrast-toggle" class="toggle-label" data-i18n="settings.contrastToggleLabel">Alto contraste</label>
           <button id="s-contrast-toggle" class="toggle-btn" role="switch" aria-checked="false"
-            aria-label="Activar o desactivar alto contraste">
+            data-i18n-aria-label="settings.contrastToggleAriaLabel" aria-label="Activar o desactivar alto contraste">
             <span class="toggle-thumb"></span>
           </button>
         </div>
         <div class="toggle-row">
-          <label for="s-bigfont-toggle" class="toggle-label">Letra grande</label>
+          <label for="s-bigfont-toggle" class="toggle-label" data-i18n="settings.bigFontToggleLabel">Letra grande</label>
           <button id="s-bigfont-toggle" class="toggle-btn" role="switch" aria-checked="false"
-            aria-label="Activar o desactivar letra grande">
+            data-i18n-aria-label="settings.bigFontToggleAriaLabel" aria-label="Activar o desactivar letra grande">
             <span class="toggle-thumb"></span>
           </button>
         </div>
         <div class="toggle-row">
-          <label for="s-dark-toggle" class="toggle-label">Modo oscuro</label>
+          <label for="s-dark-toggle" class="toggle-label" data-i18n="settings.darkToggleLabel">Modo oscuro</label>
           <button id="s-dark-toggle" class="toggle-btn" role="switch" aria-checked="false"
-            aria-label="Activar o desactivar modo oscuro">
+            data-i18n-aria-label="settings.darkToggleAriaLabel" aria-label="Activar o desactivar modo oscuro">
             <span class="toggle-thumb"></span>
           </button>
         </div>
         <div class="toggle-row">
-          <label for="s-doubletap-toggle" class="toggle-label">Doble toque para confirmar</label>
+          <label for="s-doubletap-toggle" class="toggle-label" data-i18n="settings.doubleTapToggleLabel">Doble toque para confirmar</label>
           <button id="s-doubletap-toggle" class="toggle-btn" role="switch" aria-checked="false"
-            aria-label="Activar confirmación con doble toque">
+            data-i18n-aria-label="settings.doubleTapToggleAriaLabel" aria-label="Activar confirmación con doble toque">
             <span class="toggle-thumb"></span>
           </button>
         </div>
         <div class="toggle-row">
-          <label for="s-senior-toggle" class="toggle-label">Modo adulto mayor</label>
+          <label for="s-senior-toggle" class="toggle-label" data-i18n="settings.seniorToggleLabel">Modo adulto mayor</label>
           <button id="s-senior-toggle" class="toggle-btn" role="switch" aria-checked="true"
-            aria-label="Activar modo adulto mayor: avisos e instrucciones más visibles">
+            data-i18n-aria-label="settings.seniorToggleAriaLabel" aria-label="Activar modo adulto mayor: avisos e instrucciones más visibles">
             <span class="toggle-thumb"></span>
           </button>
         </div>
-        <p class="setting-hint">
+        <p class="setting-hint" data-i18n="settings.seniorHint">
           El modo adulto mayor deja los avisos en pantalla más tiempo y muestra instrucciones más claras.
         </p>
       </div>
 
       <!-- Guardar y borrar -->
       <div class="settings-group">
-        <button id="btn-save-settings" class="btn-primary" aria-label="Guardar todos los ajustes">
+        <button id="btn-save-settings" class="btn-primary" data-i18n-aria-label="settings.saveAriaLabel" aria-label="Guardar todos los ajustes" data-i18n="settings.saveLabel">
           Guardar ajustes
         </button>
-        <button id="btn-clear-data" class="btn-danger" aria-label="Borrar todos los datos de la aplicación">
+        <button id="btn-clear-data" class="btn-danger" data-i18n-aria-label="settings.clearDataAriaLabel" aria-label="Borrar todos los datos de la aplicación" data-i18n="settings.clearDataLabel">
           Borrar todos los datos
         </button>
       </div>
@@ -439,27 +449,27 @@
   </main>
 
   <!-- Bottom Navigation -->
-  <nav class="bottom-nav" role="navigation" aria-label="Navegación principal">
-    <button class="nav-btn active" data-view="inicio" aria-label="Inicio" aria-current="page">
+  <nav class="bottom-nav" role="navigation" data-i18n-aria-label="nav.mainAriaLabel" aria-label="Navegación principal">
+    <button class="nav-btn active" data-view="inicio" data-i18n-aria-label="nav.home" aria-label="Inicio" aria-current="page">
       <span class="nav-icon" aria-hidden="true">🏠</span>
-      <span class="nav-label">Inicio</span>
+      <span class="nav-label" data-i18n="nav.home">Inicio</span>
     </button>
-    <button class="nav-btn" data-view="medicinas" aria-label="Medicamentos" aria-current="false">
+    <button class="nav-btn" data-view="medicinas" data-i18n-aria-label="nav.medsAriaLabel" aria-label="Medicamentos" aria-current="false">
       <span class="nav-icon" aria-hidden="true">💊</span>
-      <span class="nav-label">Medicinas</span>
+      <span class="nav-label" data-i18n="nav.meds">Medicinas</span>
     </button>
     <button class="nav-btn nav-sos" data-view="sos"
-      aria-label="Emergencia SOS. Mantener pulsado dos segundos para activar" aria-current="false">
+      data-i18n-aria-label="nav.sosAriaLabel" aria-label="Emergencia SOS. Mantener pulsado dos segundos para activar" aria-current="false">
       <span class="nav-icon" aria-hidden="true">🆘</span>
-      <span class="nav-label">SOS</span>
+      <span class="nav-label" data-i18n="nav.sosLabel">SOS</span>
     </button>
-    <button class="nav-btn" data-view="historial" aria-label="Historial" aria-current="false">
+    <button class="nav-btn" data-view="historial" data-i18n-aria-label="nav.history" aria-label="Historial" aria-current="false">
       <span class="nav-icon" aria-hidden="true">📋</span>
-      <span class="nav-label">Historial</span>
+      <span class="nav-label" data-i18n="nav.history">Historial</span>
     </button>
-    <button class="nav-btn" data-view="ajustes" aria-label="Ajustes" aria-current="false">
+    <button class="nav-btn" data-view="ajustes" data-i18n-aria-label="nav.settings" aria-label="Ajustes" aria-current="false">
       <span class="nav-icon" aria-hidden="true">⚙️</span>
-      <span class="nav-label">Ajustes</span>
+      <span class="nav-label" data-i18n="nav.settings">Ajustes</span>
     </button>
   </nav>
 
@@ -472,13 +482,13 @@
       <p id="alarm-modal-body" class="modal-body">Mensaje</p>
       <p id="alarm-modal-notes" class="modal-notes"></p>
       <div class="modal-actions">
-        <button id="btn-modal-taken" class="btn-primary" aria-label="Confirmar que tomé el medicamento">
+        <button id="btn-modal-taken" class="btn-primary" data-i18n-aria-label="alarm.takenAriaLabel" aria-label="Confirmar que tomé el medicamento" data-i18n="alarm.takenLabel">
           ✅ Tomado
         </button>
-        <button id="btn-modal-snooze" class="btn-secondary" aria-label="Posponer la alarma">
+        <button id="btn-modal-snooze" class="btn-secondary" data-i18n-aria-label="alarm.snoozeAriaLabel" aria-label="Posponer la alarma" data-i18n="alarm.snoozeLabel">
           ⏰ Posponer
         </button>
-        <button id="btn-modal-skip" class="btn-ghost" aria-label="Omitir esta dosis">
+        <button id="btn-modal-skip" class="btn-ghost" data-i18n-aria-label="alarm.skipAriaLabel" aria-label="Omitir esta dosis" data-i18n="alarm.skipLabel">
           Omitir dosis
         </button>
       </div>
@@ -491,8 +501,8 @@
     <div class="modal-box">
       <p id="confirm-modal-msg" class="modal-body" style="margin-bottom:20px"></p>
       <div class="modal-actions">
-        <button id="btn-confirm-ok" class="btn-danger">Confirmar</button>
-        <button id="btn-confirm-cancel" class="btn-secondary" style="margin-top:0">Cancelar</button>
+        <button id="btn-confirm-ok" class="btn-danger" data-i18n="common.confirm">Confirmar</button>
+        <button id="btn-confirm-cancel" class="btn-secondary" style="margin-top:0" data-i18n="common.cancel">Cancelar</button>
       </div>
     </div>
   </div>

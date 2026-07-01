@@ -25,13 +25,6 @@ const MAX_NAME_LEN  = 60;
 const MAX_DOSE_LEN  = 40;
 const MAX_NOTES_LEN = 200;
 
-const FREQ_LABELS = {
-  diario:  'Todos los días',
-  semana:  'Lun – Vie',
-  finde:   'Sáb – Dom',
-  alterno: 'Días alternos',
-};
-
 // ══════════════════════════════════════════════════════════
 // PLUGIN INITIALISATION
 // Resolved only when running inside a Capacitor WebView.
@@ -55,6 +48,143 @@ function _resolvePlugins() {
       _LocalNotifications = P.LocalNotifications || null;
     }
   } catch (_) {}
+}
+
+// ══════════════════════════════════════════════════════════
+// LOCALIZATION (i18n)
+// Diccionarios en locales/es.json y locales/en.json. Español es
+// siempre el idioma de reserva: si falta una clave en el idioma
+// activo, o si el fetch del idioma elegido falla, se usa el texto
+// en español para que la app nunca muestre una clave en bruto.
+// ══════════════════════════════════════════════════════════
+const SUPPORTED_LANGS = ['es', 'en'];
+const DEFAULT_LANG = 'es';
+
+let LANG = DEFAULT_LANG;
+let STRINGS = {};       // diccionario del idioma activo
+let STRINGS_ES = null;  // diccionario español, cacheado como reserva
+
+// Idioma del dispositivo si es uno soportado; si no, español.
+function detectDeviceLanguage() {
+  try {
+    const langs = (navigator.languages && navigator.languages.length)
+      ? navigator.languages
+      : [navigator.language || ''];
+    for (const l of langs) {
+      const code = String(l).slice(0, 2).toLowerCase();
+      if (SUPPORTED_LANGS.includes(code)) return code;
+    }
+  } catch (_) {}
+  return DEFAULT_LANG;
+}
+
+// Carga locales/<lang>.json. Devuelve {} si falla (nunca lanza):
+// el llamador cae de vuelta al español ya cacheado.
+async function loadLocaleJSON(lang) {
+  try {
+    const res = await fetch('locales/' + lang + '.json');
+    if (!res.ok) return {};
+    return await res.json();
+  } catch (_) {
+    return {};
+  }
+}
+
+// Busca "a.b.c" dentro de un objeto anidado. undefined si no existe.
+function _lookupKey(dict, key) {
+  const parts = key.split('.');
+  let node = dict;
+  for (const p of parts) {
+    if (!node || typeof node !== 'object' || !(p in node)) return undefined;
+    node = node[p];
+  }
+  return typeof node === 'string' ? node : undefined;
+}
+
+// Sustituye {placeholders} por los valores de `vars`.
+function _interpolate(str, vars) {
+  if (!vars) return str;
+  return str.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+}
+
+// Traduce `key` (ruta con puntos, p.ej. "sos.title") con placeholders
+// opcionales. Reserva: idioma activo → español → la propia clave
+// (para nunca dejar la interfaz en blanco, ni siquiera con un
+// diccionario corrupto o incompleto).
+function tr(key, vars) {
+  const val = _lookupKey(STRINGS, key)
+    ?? _lookupKey(STRINGS_ES, key)
+    ?? key;
+  return _interpolate(val, vars);
+}
+
+// Aplica las traducciones a todo el DOM estático marcado con
+// data-i18n / data-i18n-aria-label / data-i18n-placeholder /
+// data-i18n-title. Se puede llamar de nuevo tras cambiar idioma,
+// sin recargar la página.
+function applyStaticI18n(root) {
+  const scope = root || document;
+  scope.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = tr(el.getAttribute('data-i18n'));
+  });
+  scope.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+    el.setAttribute('aria-label', tr(el.getAttribute('data-i18n-aria-label')));
+  });
+  scope.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.setAttribute('placeholder', tr(el.getAttribute('data-i18n-placeholder')));
+  });
+  scope.querySelectorAll('[data-i18n-title]').forEach(el => {
+    el.setAttribute('title', tr(el.getAttribute('data-i18n-title')));
+  });
+  document.documentElement.setAttribute('lang', LANG);
+}
+
+// Precarga el español como reserva segura ANTES de loadState(): la
+// pantalla de bloqueo biométrico puede aparecer durante loadState()
+// (antes de conocer el idioma guardado), y tr() la necesita disponible
+// para no mostrar claves en bruto en una pantalla de seguridad.
+async function preloadI18nFallback() {
+  STRINGS_ES = await loadLocaleJSON('es');
+  STRINGS = STRINGS_ES;
+  LANG = 'es';
+}
+
+// Resuelve el idioma efectivo (ajuste guardado o detección de
+// dispositivo) y carga su diccionario si es distinto del español ya
+// precargado. Se llama una vez en init(), justo después de loadState().
+async function initI18n() {
+  const pref = state.settings.language;
+  LANG = (pref === 'es' || pref === 'en') ? pref : detectDeviceLanguage();
+  STRINGS = (LANG === 'es') ? STRINGS_ES : await loadLocaleJSON(LANG);
+  applyStaticI18n();
+}
+
+// Cambia de idioma en caliente: recarga el diccionario, re-renderiza
+// la vista actual y guarda la preferencia. `lang` es 'auto'|'es'|'en'.
+async function setLanguage(lang) {
+  state.settings.language = lang;
+  LANG = (lang === 'es' || lang === 'en') ? lang : detectDeviceLanguage();
+  STRINGS = (LANG === 'es') ? STRINGS_ES : await loadLocaleJSON(LANG);
+  applyStaticI18n();
+  saveState();
+  if (currentView === 'inicio')    renderInicio();
+  if (currentView === 'medicinas') renderMedicineList();
+  if (currentView === 'historial') renderHistory();
+  if (currentView === 'ajustes')   populateSettings();
+  speak(tr('settings.languageChangedSpeech'));
+  showToast(tr('settings.savedToast'), 'success');
+}
+
+// Etiqueta traducida de una frecuencia (reemplaza el antiguo FREQ_LABELS fijo en español).
+function freqLabel(freq) {
+  const map = { diario: 'form.freqDiario', semana: 'form.freqSemana', finde: 'form.freqFinde', alterno: 'form.freqAlterno' };
+  return tr(map[freq] || 'form.freqDiario');
+}
+
+// Versión corta de la etiqueta de frecuencia, usada como respaldo en la fila de alarma.
+function freqLabelShort(freq) {
+  const map = { diario: 'home.freqShortDiario', semana: 'home.freqShortSemana', finde: 'home.freqShortFinde', alterno: 'home.freqShortAlterno' };
+  return tr(map[freq] || 'home.freqShortDiario');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -97,12 +227,12 @@ function _showLockScreen(reason) {
   const title = document.createElement('h2');
   title.id = 'lock-title';
   title.style.cssText = 'margin:0;font-size:1.25rem;color:var(--text,#134e4a)';
-  title.textContent = 'Acceso bloqueado';
+  title.textContent = tr('lock.title');
 
   const desc = document.createElement('p');
   desc.id = 'lock-desc';
   desc.style.cssText = 'margin:0;font-size:0.95rem;color:var(--text-muted,#5eead4);text-align:center;max-width:280px';
-  desc.textContent = reason || 'No se pudo verificar la identidad. Reinicia la aplicación.';
+  desc.textContent = reason || tr('lock.defaultReason');
 
   const retryBtn = document.createElement('button');
   retryBtn.style.cssText = [
@@ -111,8 +241,8 @@ function _showLockScreen(reason) {
     'background:var(--primary,#0D9488)',
     'color:#fff', 'font-size:1rem', 'cursor:pointer',
   ].join(';');
-  retryBtn.textContent = 'Reintentar';
-  retryBtn.setAttribute('aria-label', 'Reintentar autenticación biométrica');
+  retryBtn.textContent = tr('lock.retryButton');
+  retryBtn.setAttribute('aria-label', tr('lock.retryAriaLabel'));
   retryBtn.addEventListener('click', () => {
     overlay.remove();
     init();
@@ -142,6 +272,7 @@ let state = {
     seniorMode:       true,   // adultos mayores: toasts e instrucciones más visibles
     snoozeMinutes:    10,
     sosNumber:        '911',
+    language:         'auto', // 'auto'|'es'|'en' — 'auto' sigue el idioma del dispositivo
   },
   profile: {
     name:        '',
@@ -231,11 +362,11 @@ async function loadState() {
     if (available) {
       try {
         await _BiometricAuth.verifyIdentity({
-          reason:             'Verifica tu identidad para acceder a MediTime',
+          reason:             tr('lock.biometricReason'),
           title:              'MediTime PRO',
-          subtitle:           'Autenticación requerida',
-          description:        'Usa tu huella dactilar o Face ID para continuar',
-          negativeButtonText: 'Cancelar',
+          subtitle:           tr('lock.biometricSubtitle'),
+          description:        tr('lock.biometricDescription'),
+          negativeButtonText: tr('common.cancel'),
           maxAttempts:        3,
         });
       } catch (bioErr) {
@@ -244,10 +375,10 @@ async function loadState() {
         const isLockout = /lockout|too many/i.test(msg);
         _showLockScreen(
           isLockout
-            ? 'Demasiados intentos fallidos. Reinicia la aplicación.'
+            ? tr('lock.lockoutReason')
             : isCancel
-              ? 'Autenticación cancelada. Toca "Reintentar" para continuar.'
-              : 'No se pudo verificar la identidad. Inténtalo de nuevo.'
+              ? tr('lock.cancelReason')
+              : tr('lock.genericReason')
         );
         // Hard-halt: nothing renders until the user retries
         return;
@@ -262,7 +393,7 @@ async function loadState() {
       if (result && result.value) _applyParsed(JSON.parse(result.value));
     } catch (e) {
       const notFound = e && /not found|no value/i.test(e.message || '');
-      if (!notFound) showToast('Error al leer datos seguros', 'error');
+      if (!notFound) showToast(tr('storage.readError'), 'error');
       // KEY_NOT_FOUND on first launch is expected — defaults are used
     }
     return;
@@ -291,7 +422,7 @@ async function saveState() {
     try {
       await _SecureStorage.set({ key: STORAGE_KEY, value: payload });
     } catch (_) {
-      showToast('Error al guardar datos', 'error');
+      showToast(tr('storage.saveError'), 'error');
     }
     return;
   }
@@ -300,7 +431,7 @@ async function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY, payload);
   } catch (_) {
-    showToast('Error al guardar datos', 'error');
+    showToast(tr('storage.saveError'), 'error');
   }
 }
 
@@ -454,10 +585,10 @@ function navigateTo(view) {
   if (view === 'historial') { renderHistory(); }
   if (view === 'ajustes')   { populateSettings(); }
 
-  const viewNames = { inicio:'Inicio', medicinas:'Medicamentos', sos:'Emergencia', historial:'Historial', ajustes:'Ajustes' };
+  const viewNames = { inicio: tr('views.home'), medicinas: tr('views.meds'), sos: tr('views.sos'), historial: tr('views.history'), ajustes: tr('views.settings') };
   speak(view === 'historial'
     ? historySummarySpeech()
-    : 'Sección ' + (viewNames[view] || view));
+    : tr('nav.sectionSpeech', { section: viewNames[view] || view }));
 }
 
 // ══════════════════════════════════════════════════════════
@@ -483,9 +614,9 @@ function resetDailyConfirmed() {
 // ══════════════════════════════════════════════════════════
 function getGreeting() {
   const h = new Date().getHours();
-  if (h < 12) return 'Buenos días';
-  if (h < 20) return 'Buenas tardes';
-  return 'Buenas noches';
+  if (h < 12) return tr('greeting.morning');
+  if (h < 20) return tr('greeting.afternoon');
+  return tr('greeting.evening');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -498,7 +629,7 @@ function renderInicio() {
 
   // Name
   const nameEl = document.getElementById('patient-name-display');
-  if (nameEl) nameEl.textContent = state.profile.name ? state.profile.name : 'Mi Medicación';
+  if (nameEl) nameEl.textContent = state.profile.name ? state.profile.name : tr('greeting.defaultName');
 
   // Progress
   const todayMeds = getMedicinesForToday();
@@ -512,9 +643,9 @@ function renderInicio() {
   const summaryEl = document.getElementById('today-summary');
   if (summaryEl) {
     if (total === 0) {
-      summaryEl.textContent = 'No hay medicamentos para hoy.';
+      summaryEl.textContent = tr('home.noMedsToday');
     } else {
-      summaryEl.textContent = 'Has tomado ' + taken + ' de ' + total + ' dosis hoy.';
+      summaryEl.textContent = tr('home.summaryTaken', { taken, total });
     }
   }
 
@@ -550,7 +681,7 @@ function renderNextAlarm(todayMeds) {
     });
   });
 
-  nextEl.textContent = next ? next.time : 'Ninguna pendiente';
+  nextEl.textContent = next ? next.time : tr('home.nonePending');
 }
 
 function renderTodayAlarms(todayMeds) {
@@ -568,7 +699,7 @@ function renderTodayAlarms(todayMeds) {
 
   if (allAlarms.length === 0) {
     const p = document.createElement('p');
-    p.textContent = 'Sin medicamentos para hoy.';
+    p.textContent = tr('home.noMedsForToday');
     p.style.textAlign = 'center';
     p.style.color = 'var(--text-muted)';
     p.style.padding = '24px';
@@ -593,7 +724,7 @@ function renderTodayAlarms(todayMeds) {
 
     const detail = document.createElement('p');
     detail.className = 'alarm-detail';
-    detail.textContent = med.dose || FREQ_LABELS[med.frequency] || '';
+    detail.textContent = med.dose || freqLabelShort(med.frequency) || '';
 
     info.appendChild(nameEl);
     info.appendChild(detail);
@@ -611,7 +742,9 @@ function renderTodayAlarms(todayMeds) {
     row.appendChild(info);
     row.appendChild(timeEl);
     row.appendChild(statusEl);
-    row.setAttribute('aria-label', med.name + ' a las ' + time + (med.confirmedToday[time] ? ' – tomado' : ' – pendiente'));
+    row.setAttribute('aria-label', med.confirmedToday[time]
+      ? tr('home.alarmRowTaken', { name: med.name, time })
+      : tr('home.alarmRowPending', { name: med.name, time }));
 
     container.appendChild(row);
   });
@@ -729,10 +862,13 @@ const NOTIF_MAX_TOTAL = 180;
 async function ensureMedicineAlarmChannel() {
   if (!_LocalNotifications || typeof _LocalNotifications.createChannel !== 'function') return;
   try {
+    // Nota i18n: el nombre/descripción del canal son "pegajosos" (ver comentario
+    // más abajo): quedan fijados al idioma activo en la PRIMERA creación del
+    // canal y Android ignora cambios posteriores salvo que se suba el id.
     await _LocalNotifications.createChannel({
       id:          MEDICINE_ALARM_CHANNEL_ID,
-      name:        'Alarmas de medicamentos',
-      description: 'Recordatorios importantes para tomar medicamentos',
+      name:        tr('settings.notifStep2b'),
+      description: tr('alarm.channelDescription'),
       importance:  5,        // IMPORTANCE_HIGH/MAX: suena y asoma en pantalla
       visibility:  1,        // VISIBILITY_PUBLIC: visible en pantalla bloqueada
       sound:       MEDICINE_ALARM_SOUND,
@@ -798,8 +934,8 @@ function buildNotificationForMedicine(med, time, atDate, id) {
   return {
     id,
     channelId:  MEDICINE_ALARM_CHANNEL_ID,
-    title:      '💊 MediTime — Hora de su medicina',
-    body:       med.name + (med.dose ? ' · ' + med.dose : '') + ' a las ' + time,
+    title:      tr('alarm.notifTitle'),
+    body:       med.dose ? tr('alarm.notifBodyDose', { name: med.name, dose: med.dose, time }) : tr('alarm.notifBody', { name: med.name, time }),
     sound:      MEDICINE_ALARM_SOUND,   // respaldo Android 7.x (en 8+ manda el canal)
     autoCancel: false,
     ongoing:    false,
@@ -956,9 +1092,9 @@ async function maybeWarnExactAlarm() {
   if (status !== 'denied') return;   // concedidas o no aplica → silencio
   _exactAlarmWarned = true;
   showToast(
-    'Para que las alarmas suenen a la hora exacta, activa Alarmas exactas en Android.',
+    tr('settings.exactAlarmWarnToast'),
     'warning',
-    { label: 'Activar', ariaLabel: 'Abrir ajustes de alarmas exactas', onAction: openExactAlarmSettings },
+    { label: tr('settings.exactAlarmWarnAction'), ariaLabel: tr('settings.exactAlarmWarnActionAriaLabel'), onAction: openExactAlarmSettings },
   );
 }
 
@@ -966,13 +1102,13 @@ async function maybeWarnExactAlarm() {
 async function reviewExactAlarms() {
   const status = await checkExactAlarmSupport();
   if (status === 'granted') {
-    showToast('Las alarmas exactas ya están activadas.', 'success');
-    speak('Las alarmas exactas ya están activadas.');
+    showToast(tr('settings.exactAlarmGranted'), 'success');
+    speak(tr('settings.exactAlarmGranted'));
   } else if (status === 'denied') {
-    speak('Abriendo los ajustes para activar las alarmas exactas.');
+    speak(tr('settings.exactAlarmOpeningSpeech'));
     openExactAlarmSettings();
   } else {
-    showToast('Este dispositivo no necesita activar alarmas exactas.', 'success');
+    showToast(tr('settings.exactAlarmNotNeeded'), 'success');
   }
 }
 
@@ -982,7 +1118,7 @@ async function reviewExactAlarms() {
 // si el sonido suena, lo que aisla el problema nativo del modal/WebAudio en-app.
 async function scheduleNativeAlarmTest() {
   if (!_LocalNotifications) {
-    showToast('Solo disponible en la app nativa de Android.', 'warning');
+    showToast(tr('alarm.nativeTestUnavailable'), 'warning');
     return;
   }
   try {
@@ -990,7 +1126,7 @@ async function scheduleNativeAlarmTest() {
     if (perm.display !== 'granted') {
       perm = await _LocalNotifications.requestPermissions();
       if (perm.display !== 'granted') {
-        showToast('Permiso de notificaciones denegado.', 'error');
+        showToast(tr('alarm.permissionDeniedToast'), 'error');
         return;
       }
     }
@@ -1007,8 +1143,8 @@ async function scheduleNativeAlarmTest() {
       notifications: [{
         id:         990001,
         channelId:  MEDICINE_ALARM_CHANNEL_ID,
-        title:      'Prueba de alarma MediTime',
-        body:       'Esta es una prueba nativa. Debe sonar con la pantalla bloqueada.',
+        title:      tr('alarm.testNotifTitle'),
+        body:       tr('alarm.testNotifBody'),
         sound:      MEDICINE_ALARM_SOUND,
         autoCancel: false,
         schedule:   { at: testDate, allowWhileIdle: true },
@@ -1019,12 +1155,12 @@ async function scheduleNativeAlarmTest() {
     const pending = await _LocalNotifications.getPending();
     const found = pending && pending.notifications && pending.notifications.some(n => Number(n.id) === 990001);
     if (found) {
-      showToast('Prueba programada para ' + testTimeStr + '. Bloquea la pantalla y espera.', 'success');
+      showToast(tr('alarm.scheduledTestToast', { time: testTimeStr }), 'success');
     } else {
-      showToast('La prueba no aparece como pendiente. Revisa permisos de Android.', 'warning');
+      showToast(tr('alarm.testNotPendingToast'), 'warning');
     }
   } catch (err) {
-    showToast('Error al programar la prueba: ' + String(err), 'error');
+    showToast(tr('alarm.testErrorToast', { err: String(err) }), 'error');
   }
 }
 
@@ -1033,7 +1169,7 @@ async function scheduleNativeAlarmTest() {
 // próximas 5 notificaciones agendadas. Solo usa createElement/textContent.
 async function showNotifDiagnostics() {
   if (!_LocalNotifications) {
-    showToast('Diagnóstico solo disponible en la app nativa de Android.', 'warning');
+    showToast(tr('alarm.diagUnavailable'), 'warning');
     return;
   }
   try {
@@ -1050,7 +1186,7 @@ async function showNotifDiagnostics() {
     const panel = document.createElement('div');
     panel.id = 'notif-diagnostics-panel';
     panel.setAttribute('role', 'region');
-    panel.setAttribute('aria-label', 'Diagnóstico de alarmas');
+    panel.setAttribute('aria-label', tr('alarm.diagAriaLabel'));
     panel.style.cssText = 'margin-top:12px;padding:12px;background:var(--card,#fff);border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:0.85rem;line-height:1.6';
 
     const addLine = (label, value) => {
@@ -1063,24 +1199,24 @@ async function showNotifDiagnostics() {
       panel.appendChild(p);
     };
 
-    addLine('Permiso notificaciones', permStatus);
-    addLine('Alarmas exactas', exactStatus);
-    addLine('Canal activo', MEDICINE_ALARM_CHANNEL_ID);
-    addLine('Sonido del canal', MEDICINE_ALARM_SOUND);
-    addLine('Notificaciones pendientes', notifs.length);
-    addLine('Prueba id=990001 pendiente', testPending ? 'Sí' : 'No');
+    addLine(tr('alarm.diagPermLabel'), permStatus);
+    addLine(tr('alarm.diagExactLabel'), exactStatus);
+    addLine(tr('alarm.diagChannelLabel'), MEDICINE_ALARM_CHANNEL_ID);
+    addLine(tr('alarm.diagSoundLabel'), MEDICINE_ALARM_SOUND);
+    addLine(tr('alarm.diagPendingLabel'), notifs.length);
+    addLine(tr('alarm.diagTestPendingLabel'), testPending ? tr('alarm.diagYes') : tr('alarm.diagNo'));
 
     const top5 = notifs.slice(0, 5);
     if (top5.length) {
       const h = document.createElement('p');
       h.style.cssText = 'margin:8px 0 2px;font-weight:bold';
-      h.textContent = 'Próximas ' + top5.length + ' notificaciones:';
+      h.textContent = tr('alarm.diagUpcomingLabel', { n: top5.length });
       panel.appendChild(h);
       const pad = x => String(x).padStart(2, '0');
       top5.forEach(n => {
         const p = document.createElement('p');
         p.style.cssText = 'margin:0 0 2px;padding-left:8px;font-size:0.8rem';
-        let info = 'id=' + n.id + '  ' + (n.title || '(sin título)');
+        let info = 'id=' + n.id + '  ' + (n.title || tr('alarm.diagNoTitle'));
         if (n.schedule && n.schedule.at) {
           const at = new Date(n.schedule.at);
           if (!isNaN(at.getTime())) info += '  ' + pad(at.getHours()) + ':' + pad(at.getMinutes());
@@ -1095,7 +1231,7 @@ async function showNotifDiagnostics() {
     closeBtn.type = 'button';
     closeBtn.className = 'btn-outline';
     closeBtn.style.cssText = 'margin-top:10px;font-size:0.8rem';
-    closeBtn.textContent = 'Cerrar diagnóstico';
+    closeBtn.textContent = tr('alarm.diagCloseButton');
     closeBtn.addEventListener('click', () => panel.remove());
     panel.appendChild(closeBtn);
 
@@ -1104,7 +1240,7 @@ async function showNotifDiagnostics() {
       diagBtn.parentNode.insertBefore(panel, diagBtn.nextSibling);
     }
   } catch (err) {
-    showToast('Error al obtener diagnóstico: ' + String(err), 'error');
+    showToast(tr('alarm.diagErrorToast', { err: String(err) }), 'error');
   }
 }
 
@@ -1144,15 +1280,15 @@ function triggerAlarm(med, time) {
   playSound(soundName);
   vibrate(med.priority === 'urgente' ? 'urgent' : 'alarm');
 
-  speak('Atención. Hora de tomar ' + med.name + '. ' + (med.dose || '') + '. ' + (med.notes || ''));
+  speak(tr('alarm.speakAlarm', { name: med.name, dose: med.dose || '', notes: med.notes || '' }));
 
   showAlarmModal(med, time);
 
   // Web Notification
   if (state.settings.notifEnabled && 'Notification' in window && Notification.permission === 'granted') {
     try {
-      new Notification('💊 MediTime — Hora de su medicina', {
-        body: med.name + (med.dose ? ' · ' + med.dose : '') + ' a las ' + time,
+      new Notification(tr('alarm.notifTitle'), {
+        body: med.dose ? tr('alarm.notifBodyDose', { name: med.name, dose: med.dose, time }) : tr('alarm.notifBody', { name: med.name, time }),
         icon: 'icons/icon-192.png',
         tag:  'meditime-alarm-' + med.id,
         renotify: true,
@@ -1178,7 +1314,7 @@ function showAlarmModal(med, time) {
 
   if (!modal) return;
 
-  if (titleEl) titleEl.textContent = '¡Hora de tomar su medicina!';
+  if (titleEl) titleEl.textContent = tr('alarm.modalTitle');
   if (bodyEl)  bodyEl.textContent  = med.name + (med.dose ? ' — ' + med.dose : '');
   if (notesEl) notesEl.textContent = med.notes || '';
 
@@ -1202,18 +1338,18 @@ function openPracticeAlarm() {
   practiceMode = true;
   const demo = {
     id:    '__practice__',
-    name:  'Medicina de práctica',
-    dose:  '1 tableta',
-    notes: 'Esto es solo una práctica',
+    name:  tr('alarm.practiceMedName'),
+    dose:  tr('alarm.practiceDose'),
+    notes: tr('alarm.practiceNotes'),
     confirmedToday: {},
     snoozedUntil:   {},
   };
   showAlarmModal(demo, '08:00');
   const titleEl = document.getElementById('alarm-modal-title');
-  if (titleEl) titleEl.textContent = 'Práctica — Hora de su medicina';
+  if (titleEl) titleEl.textContent = tr('alarm.practiceTitle');
   playSound('normal');
   vibrate('alarm');
-  speak('Modo práctica. Así suena y se ve una alarma. Toque Tomado, Posponer u Omitir. No se guardará nada.');
+  speak(tr('alarm.practiceSpeech'));
 }
 
 function endPracticeAlarm(msg) {
@@ -1224,7 +1360,7 @@ function endPracticeAlarm(msg) {
 }
 
 function confirmDose() {
-  if (practiceMode) { endPracticeAlarm('¡Bien hecho! Era una práctica: no se guardó nada.'); return; }
+  if (practiceMode) { endPracticeAlarm(tr('alarm.practiceDoneTaken')); return; }
   if (!alarmModalMed || !alarmModalTime) return;
   const med   = alarmModalMed;
   const time  = alarmModalTime;
@@ -1236,12 +1372,12 @@ function confirmDose() {
   saveState();
   playSound('confirmacion');
   vibrate('confirm');
-  speak('Excelente. Medicamento confirmado. Que se mejore.');
+  speak(tr('alarm.confirmedSpeech'));
   // Se guarda al instante (si la app se cierra, la toma no se pierde) y
   // "Deshacer" revierte: quita la marca del día y el registro del historial.
-  showToast('¡' + med.name + ' registrado!', 'success', {
-    label:     'Deshacer',
-    ariaLabel: 'Deshacer la confirmación de ' + med.name,
+  showToast(tr('alarm.confirmedToast', { name: med.name }), 'success', {
+    label:     tr('alarm.undoLabel'),
+    ariaLabel: tr('alarm.undoAriaLabel', { name: med.name }),
     onAction:  () => undoConfirmDose(med.id, time, entry.id),
   });
   // La toma de hoy ya no debe re-alarmar: reprograma para descartar su aviso nativo.
@@ -1257,14 +1393,14 @@ function undoConfirmDose(medId, time, entryId) {
   saveState();
   // Al deshacer, la dosis vuelve a estar pendiente: reprograma su aviso nativo.
   syncNativeNotifications().catch(() => {});
-  speak('Confirmación deshecha. La alarma volverá a avisar.');
-  showToast('Confirmación deshecha', 'warning');
+  speak(tr('alarm.undoneSpeech'));
+  showToast(tr('alarm.undoneToast'), 'warning');
   if (currentView === 'inicio')    renderInicio();
   if (currentView === 'historial') renderHistory();
 }
 
 function snoozeDose() {
-  if (practiceMode) { endPracticeAlarm('Practicaste posponer. Era una práctica: no se guardó nada.'); return; }
+  if (practiceMode) { endPracticeAlarm(tr('alarm.practiceDoneSnooze')); return; }
   if (!alarmModalMed || !alarmModalTime) return;
   const minutes = state.settings.snoozeMinutes;
   if (!alarmModalMed.snoozedUntil) alarmModalMed.snoozedUntil = {};
@@ -1280,8 +1416,8 @@ function snoozeDose() {
       notifications: [{
         id:         900000 + Math.floor(Math.random() * 90000),
         channelId:  MEDICINE_ALARM_CHANNEL_ID,
-        title:      '💊 MediTime — Dosis pospuesta',
-        body:       alarmModalMed.name + (alarmModalMed.dose ? ' · ' + alarmModalMed.dose : ''),
+        title:      tr('alarm.snoozeNotifTitle'),
+        body:       alarmModalMed.dose ? tr('alarm.snoozeNotifBodyDose', { name: alarmModalMed.name, dose: alarmModalMed.dose }) : alarmModalMed.name,
         sound:      MEDICINE_ALARM_SOUND,
         autoCancel: false,
         schedule:   { at: new Date(Date.now() + minutes * 60_000), allowWhileIdle: true },
@@ -1290,21 +1426,21 @@ function snoozeDose() {
     }).catch(() => {});
   }
   playSound('suave');
-  speak('Alarma pospuesta ' + minutes + ' minutos.');
-  showToast('Pospuesto ' + minutes + ' min', 'warning');
+  speak(tr('alarm.snoozedSpeech', { minutes }));
+  showToast(tr('alarm.snoozedToast', { minutes }), 'warning');
   closeAlarmModal();
 }
 
 function skipDose() {
-  if (practiceMode) { endPracticeAlarm('Practicaste omitir. Era una práctica: no se guardó nada.'); return; }
+  if (practiceMode) { endPracticeAlarm(tr('alarm.practiceDoneSkip')); return; }
   if (!alarmModalMed || !alarmModalTime) return;
   alarmModalMed.confirmedToday[alarmModalTime] = true; // mark so it stops alerting
   state.history.unshift(createHistoryEntry(alarmModalMed.id, alarmModalMed.name, alarmModalTime, 'skipped'));
   pruneHistory();
   saveState();
   playSound('error');
-  speak('Dosis omitida.');
-  showToast('Dosis omitida', 'error');
+  speak(tr('alarm.skippedSpeech'));
+  showToast(tr('alarm.skippedToast'), 'error');
   // La toma omitida ya no debe re-alarmar hoy: reprograma sin su aviso nativo.
   syncNativeNotifications().catch(() => {});
   closeAlarmModal();
@@ -1327,7 +1463,7 @@ function renderMedicineList() {
     icon.setAttribute('aria-hidden', 'true');
     icon.textContent = '💊';
     const p = document.createElement('p');
-    p.textContent = 'Sin medicamentos guardados. Toca ＋ para agregar.';
+    p.textContent = tr('meds.empty');
     empty.appendChild(icon);
     empty.appendChild(p);
     container.appendChild(empty);
@@ -1374,7 +1510,7 @@ function renderMedicineList() {
     if (med.priority === 'urgente') {
       const urgBadge = document.createElement('span');
       urgBadge.className = 'urgente-badge';
-      urgBadge.textContent = '🚨 Urgente';
+      urgBadge.textContent = tr('form.priorityUrgent');
       timesRow.appendChild(urgBadge);
     }
 
@@ -1388,13 +1524,13 @@ function renderMedicineList() {
 
     const editBtn = document.createElement('button');
     editBtn.className = 'btn-icon';
-    editBtn.setAttribute('aria-label', 'Editar ' + med.name);
+    editBtn.setAttribute('aria-label', tr('meds.editAriaLabel', { name: med.name }));
     editBtn.textContent = '✏️';
     editBtn.addEventListener('click', () => openEditForm(med.id));
 
     const delBtn = document.createElement('button');
     delBtn.className = 'btn-icon danger';
-    delBtn.setAttribute('aria-label', 'Eliminar ' + med.name);
+    delBtn.setAttribute('aria-label', tr('meds.deleteAriaLabel', { name: med.name }));
     delBtn.textContent = '🗑️';
     delBtn.addEventListener('click', () => deleteMedicine(med.id));
 
@@ -1410,16 +1546,6 @@ function renderMedicineList() {
 
 // ── Add/Edit Form ──
 let formTimes = []; // temp times while editing form
-
-// ── Selector de hora sencillo para adultos mayores ──
-// Rutinas frecuentes: un toque añade la hora típica de esa franja.
-const PRESET_TIMES = [
-  { emoji: '🌅', label: 'Mañana',          time: '08:00' },
-  { emoji: '☀️', label: 'Mediodía',        time: '12:00' },
-  { emoji: '🌇', label: 'Tarde',           time: '18:00' },
-  { emoji: '🌙', label: 'Noche',           time: '21:00' },
-  { emoji: '🛏️', label: 'Antes de dormir', time: '22:00' },
-];
 
 // Estado del selector manual con + / − (no se persiste).
 let manualHour   = 8;
@@ -1445,12 +1571,12 @@ function openAddForm() {
   formTimes = [];
 
   const titleEl = document.getElementById('form-title');
-  if (titleEl) titleEl.textContent = 'Agregar Medicamento';
+  if (titleEl) titleEl.textContent = tr('form.addTitle');
 
   clearForm();
   renderTimesInForm();
   showFormPanel();
-  speak('Agregar medicamento. Completa el formulario.');
+  speak(tr('form.addSpeech'));
 }
 
 function openEditForm(id) {
@@ -1460,7 +1586,7 @@ function openEditForm(id) {
   formTimes = [...med.times];
 
   const titleEl = document.getElementById('form-title');
-  if (titleEl) titleEl.textContent = 'Editar Medicamento';
+  if (titleEl) titleEl.textContent = tr('form.editTitle');
 
   const nameEl     = document.getElementById('f-name');
   const doseEl     = document.getElementById('f-dose');
@@ -1484,7 +1610,7 @@ function openEditForm(id) {
   renderManualTime();
   renderTimesInForm();
   showFormPanel();
-  speak('Editando ' + med.name + '.');
+  speak(tr('form.editSpeech', { name: med.name }));
 }
 
 function showFormPanel() {
@@ -1532,12 +1658,12 @@ function renderTimesInForm() {
     timeInput.style.padding = '0';
     timeInput.style.minHeight = 'unset';
     timeInput.style.width = '90px';
-    timeInput.setAttribute('aria-label', 'Hora ' + (idx + 1));
+    timeInput.setAttribute('aria-label', tr('form.hourAriaLabel', { n: idx + 1 }));
     timeInput.addEventListener('change', e => { formTimes[idx] = e.target.value; });
 
     const removeBtn = document.createElement('button');
     removeBtn.textContent = '✕';
-    removeBtn.setAttribute('aria-label', 'Eliminar hora ' + t);
+    removeBtn.setAttribute('aria-label', tr('form.removeHourAriaLabel', { time: t }));
     removeBtn.type = 'button';
     removeBtn.addEventListener('click', () => {
       formTimes.splice(idx, 1);
@@ -1555,23 +1681,27 @@ function addTimeToForm() {
   const t = pad(now.getHours()) + ':' + pad(now.getMinutes());
   if (addTimeIfNew(t)) {
     renderTimesInForm();
-    speak('Horario agregado: ' + t + '.');
+    speak(tr('form.timeAddedSpeech', { time: t }));
   } else {
-    showToast('Esa hora ya está agregada', 'warning');
-    speak('Esa hora ya estaba agregada.');
+    showToast(tr('form.timeAlreadyAddedToast'), 'warning');
+    speak(tr('form.timeAlreadyAddedSpeech'));
   }
 }
 
 // Toque en un botón de rutina (Mañana, Mediodía…): añade su hora típica.
-function addPresetTime(time, label) {
+// `presetKey` es el data-preset del botón ("morning"|"noon"|"afternoon"|"night"|"bedtime"),
+// usado para traducir la etiqueta en vez de depender de texto ya localizado en el DOM.
+function addPresetTime(time, presetKey) {
   if (!TIME_RE.test(time)) return;
+  const nameKey = 'form.preset' + presetKey.charAt(0).toUpperCase() + presetKey.slice(1) + 'Name';
+  const label = tr(nameKey);
   if (addTimeIfNew(time)) {
     renderTimesInForm();
-    showToast('Hora agregada: ' + label + ' ' + time, 'success');
-    speak('Hora agregada: ' + label + ' a las ' + time + '.');
+    showToast(tr('form.presetAddedToast', { label, time }), 'success');
+    speak(tr('form.presetAddedSpeech', { label, time }));
   } else {
-    showToast('Esa hora ya está agregada', 'warning');
-    speak('Esa hora ya estaba agregada.');
+    showToast(tr('form.timeAlreadyAddedToast'), 'warning');
+    speak(tr('form.timeAlreadyAddedSpeech'));
   }
 }
 
@@ -1600,11 +1730,11 @@ function addManualTime() {
   const time = formatTimeFromParts(manualHour, manualMinute);
   if (addTimeIfNew(time)) {
     renderTimesInForm();
-    showToast('Hora agregada: ' + time, 'success');
-    speak('Hora agregada: ' + time + '.');
+    showToast(tr('form.manualAddedToast', { time }), 'success');
+    speak(tr('form.manualAddedSpeech', { time }));
   } else {
-    showToast('Esa hora ya está agregada', 'warning');
-    speak('Esa hora ya estaba agregada.');
+    showToast(tr('form.timeAlreadyAddedToast'), 'warning');
+    speak(tr('form.timeAlreadyAddedSpeech'));
   }
 }
 
@@ -1620,49 +1750,49 @@ async function saveMedicineForm(e) {
   const color    = selected ? selected.dataset.color : TAG_COLORS[0];
 
   if (!name) {
-    showToast('Ingresa el nombre del medicamento', 'error');
-    speak('El nombre es obligatorio.');
+    showToast(tr('form.nameRequiredToast'), 'error');
+    speak(tr('form.nameRequiredSpeech'));
     return;
   }
   if (name.length > MAX_NAME_LEN) {
-    showToast('El nombre es demasiado largo', 'error');
-    speak('El nombre es demasiado largo.');
+    showToast(tr('form.nameTooLongToast'), 'error');
+    speak(tr('form.nameTooLongSpeech'));
     return;
   }
   if (dose.length > MAX_DOSE_LEN) {
-    showToast('La dosis es demasiado larga', 'error');
-    speak('La dosis es demasiado larga.');
+    showToast(tr('form.doseTooLongToast'), 'error');
+    speak(tr('form.doseTooLongSpeech'));
     return;
   }
   if (notes.length > MAX_NOTES_LEN) {
-    showToast('Las notas son demasiado largas', 'error');
-    speak('Las notas son demasiado largas.');
+    showToast(tr('form.notesTooLongToast'), 'error');
+    speak(tr('form.notesTooLongSpeech'));
     return;
   }
   if (formTimes.length === 0) {
-    showToast('Agrega al menos un horario', 'error');
-    speak('Debes agregar al menos un horario.');
+    showToast(tr('form.addAtLeastOneTimeToast'), 'error');
+    speak(tr('form.addAtLeastOneTimeSpeech'));
     return;
   }
   // Validar cada horario y deduplicar antes de guardar
   for (const t of formTimes) {
     if (!TIME_RE.test(t)) {
-      showToast('Hay un horario inválido', 'error');
-      speak('Hay un horario inválido. Usa el formato hora y minutos.');
+      showToast(tr('form.invalidTimeToast'), 'error');
+      speak(tr('form.invalidTimeSpeech'));
       return;
     }
   }
   const times = [...new Set(formTimes)].sort();
   if (!VALID_FREQUENCIES.includes(freq)) {
-    showToast('Frecuencia inválida', 'error');
+    showToast(tr('form.invalidFreqToast'), 'error');
     return;
   }
   if (!VALID_PRIORITIES.includes(priority)) {
-    showToast('Prioridad inválida', 'error');
+    showToast(tr('form.invalidPriorityToast'), 'error');
     return;
   }
   if (!TAG_COLORS.includes(color)) {
-    showToast('Color inválido', 'error');
+    showToast(tr('form.invalidColorToast'), 'error');
     return;
   }
 
@@ -1678,14 +1808,14 @@ async function saveMedicineForm(e) {
       med.priority  = priority;
       med.color     = color;
     }
-    showToast(name + ' actualizado', 'success');
-    speak(name + ' actualizado correctamente.');
+    showToast(tr('meds.updatedToast', { name }), 'success');
+    speak(tr('meds.updatedSpeech', { name }));
   } else {
     // New
     const med = createMedicine({ name, dose, notes, times, frequency: freq, priority, color });
     state.medicines.push(med);
-    showToast(name + ' guardado', 'success');
-    speak(name + ' guardado correctamente.');
+    showToast(tr('meds.savedToast', { name }), 'success');
+    speak(tr('meds.savedSpeech', { name }));
     playSound('confirmacion');
   }
 
@@ -1696,9 +1826,9 @@ async function saveMedicineForm(e) {
   const notifResult = await syncNativeNotifications();
   if (_LocalNotifications && notifResult) {
     if (notifResult.ok && notifResult.scheduledCount > 0) {
-      showToast('Alarmas programadas. Próxima: ' + notifResult.nextAt, 'success');
+      showToast(tr('meds.notifScheduled', { time: notifResult.nextAt }), 'success');
     } else if (!notifResult.ok && notifResult.error && notifResult.error !== 'permission_denied') {
-      showToast('No se pudo programar la alarma nativa. Revisa permisos de notificación.', 'warning');
+      showToast(tr('meds.notifScheduleFailed'), 'warning');
     }
   }
 }
@@ -1707,14 +1837,14 @@ function deleteMedicine(id) {
   const med = state.medicines.find(m => m.id === id);
   if (!med) return;
   showConfirmModal(
-    '¿Eliminar ' + med.name + '? Esta acción no se puede deshacer.',
+    tr('meds.deleteConfirm', { name: med.name }),
     () => {
       state.medicines = state.medicines.filter(m => m.id !== id);
       saveState();
       syncNativeNotifications().catch(() => {});
       playSound('error');
-      showToast(med.name + ' eliminado', 'warning');
-      speak(med.name + ' eliminado.');
+      showToast(tr('meds.deletedToast', { name: med.name }), 'warning');
+      speak(tr('meds.deletedSpeech', { name: med.name }));
       renderMedicineList();
       if (currentView === 'inicio') renderInicio();
     }
@@ -1758,8 +1888,8 @@ function setupSOSLongPress() {
     sosHoldTimer = null;
     btn.classList.remove('holding');
     if (showHint) {                     // soltó antes del umbral → guía al usuario
-      showToast('Mantén pulsado SOS 2 segundos para activar', 'warning');
-      speak('Para activar la emergencia, mantén pulsado el botón SOS durante dos segundos.');
+      showToast(tr('sos.holdHintToast'), 'warning');
+      speak(tr('sos.holdHintSpeech'));
     }
   };
 
@@ -1796,9 +1926,9 @@ function initSOS() {
   getGPS();
   startSOSCountdown();
   if (sosPractice) {
-    speak('Modo práctica de emergencia. No se realizará ninguna llamada. Así se ve la pantalla y el botón Cancelar.');
+    speak(tr('sos.practiceActivatedSpeech'));
   } else {
-    speak('Modo de emergencia activado. Obteniendo ubicación. Llame si necesita ayuda.');
+    speak(tr('sos.activatedSpeech'));
   }
 }
 
@@ -1843,19 +1973,19 @@ function getLocationAgeLabel(ts, now) {
   const ref  = typeof now === 'number' ? now : Date.now();
   const diff = ref - ts;
   if (diff < 0) return '';
-  if (diff < 60_000) return 'hace instantes';
+  if (diff < 60_000) return tr('sos.justNow');
   const mins = Math.round(diff / 60_000);
-  if (mins < 60) return 'hace ' + mins + ' min';
+  if (mins < 60) return tr('sos.minAgo', { n: mins });
   const hrs = Math.round(mins / 60);
-  if (hrs < 24) return 'hace ' + hrs + ' h';
+  if (hrs < 24) return tr('sos.hourAgo', { n: hrs });
   const days = Math.round(hrs / 24);
-  return 'hace ' + days + ' día' + (days !== 1 ? 's' : '');
+  return tr(days !== 1 ? 'sos.daysAgo' : 'sos.dayAgo', { n: days });
 }
 
 function renderSOSLoading(box) {
   if (!box) return;
   clearElement(box);
-  box.textContent = '📡 Obteniendo ubicación GPS…';
+  box.textContent = tr('sos.obtainingSignal');
 }
 
 function renderSOSError(box, message) {
@@ -1869,7 +1999,7 @@ function renderSOSLocation(box, location, mode) {
   if (!box) return;
   clearElement(box);
   if (!isValidLocation(location)) {
-    box.textContent = 'Ubicación no disponible.';
+    box.textContent = tr('sos.locationUnavailable');
     return;
   }
   const lat = location.lat.toFixed(5);
@@ -1879,7 +2009,7 @@ function renderSOSLocation(box, location, mode) {
     const label = document.createElement('div');
     label.style.fontWeight = '700';
     const age = getLocationAgeLabel(location.ts);
-    label.textContent = 'Última ubicación conocida' + (age ? ' · ' + age : '');
+    label.textContent = tr('sos.lastKnownLabel') + (age ? ' · ' + age : '');
     box.appendChild(label);
   }
 
@@ -1894,7 +2024,7 @@ function renderSOSLocation(box, location, mode) {
     const accLine = document.createElement('div');
     accLine.style.fontSize = '0.8em';
     accLine.style.opacity  = '0.7';
-    accLine.textContent    = 'Precisión: ±' + Math.round(location.accuracy) + ' m';
+    accLine.textContent    = tr('sos.accuracyLabel', { m: Math.round(location.accuracy) });
     box.appendChild(accLine);
   }
 }
@@ -1905,7 +2035,7 @@ function getGPS() {
   renderSOSLoading(box);
 
   if (!navigator.geolocation) {
-    renderSOSError(box, 'GPS no disponible en este dispositivo.');
+    renderSOSError(box, tr('sos.gpsUnavailable'));
     return;
   }
 
@@ -1925,7 +2055,7 @@ function getGPS() {
       clearTimeout(fallbackTimer);
       const loc = saveLastKnownLocation(pos);   // un fix fresco reemplaza el puente
       renderSOSLocation(box, loc, 'fresh');
-      speak('Ubicación obtenida. Latitud ' + loc.lat.toFixed(5) + '. Longitud ' + loc.lng.toFixed(5));
+      speak(tr('sos.locationObtainedSpeech', { lat: loc.lat.toFixed(5), lng: loc.lng.toFixed(5) }));
     },
     err => {
       resolved = true;
@@ -1937,11 +2067,11 @@ function getGPS() {
         return;
       }
       const msgs = {
-        1: 'Permiso de ubicación denegado.',
-        2: 'Señal GPS no disponible.',
-        3: 'Tiempo de espera agotado.',
+        1: tr('sos.permissionDenied'),
+        2: tr('sos.signalUnavailable'),
+        3: tr('sos.timeoutError'),
       };
-      const msg = (msgs[err.code] || 'Error GPS desconocido.') + ' Active la ubicación del dispositivo.';
+      const msg = (msgs[err.code] || tr('sos.unknownError')) + tr('sos.enableLocationHint');
       renderSOSError(box, msg);
       speak(msg);
     },
@@ -1956,7 +2086,7 @@ function startSOSCountdown() {
 
   const updateUI = () => {
     if (countEl)  countEl.textContent  = count;
-    if (statusEl) statusEl.textContent = 'Llamando en ' + count + ' segundo' + (count !== 1 ? 's' : '') + '…';
+    if (statusEl) statusEl.textContent = tr(count !== 1 ? 'sos.callingInPlural' : 'sos.callingIn', { count });
   };
   updateUI();
 
@@ -1976,14 +2106,14 @@ function makeSOSCall() {
   // En práctica nunca se abre el marcador ni se llama a emergencias.
   if (sosPractice) {
     const statusEl = document.getElementById('sos-status');
-    if (statusEl) statusEl.textContent = 'Modo práctica: no se realizará ninguna llamada.';
-    speak('Modo práctica. No se realizará ninguna llamada.');
+    if (statusEl) statusEl.textContent = tr('sos.practiceNoCallStatus');
+    speak(tr('sos.practiceNoCallSpeech'));
     return;
   }
   const num = sanitizePhone(state.settings.sosNumber) || '911';
   const statusEl = document.getElementById('sos-status');
-  if (statusEl) statusEl.textContent = '¡Marcando ' + num + '!';
-  speak('Llamando a emergencias ahora.');
+  if (statusEl) statusEl.textContent = tr('sos.dialing', { number: num });
+  speak(tr('sos.callingNowSpeech'));
   const btn = document.getElementById('sos-call-btn');
   if (btn) {
     btn.href = 'tel:' + num;
@@ -1993,8 +2123,8 @@ function makeSOSCall() {
 
 function cancelSOS() {
   clearSOS();
-  speak('Emergencia cancelada.');
-  showToast('Emergencia cancelada', 'warning');
+  speak(tr('sos.cancelledSpeech'));
+  showToast(tr('sos.cancelledToast'), 'warning');
   navigateTo('inicio');
 }
 
@@ -2011,6 +2141,8 @@ function clearSOS() {
 // HISTORY VIEW
 // ══════════════════════════════════════════════════════════
 function renderHistory() {
+  const subtitleEl = document.getElementById('history-subtitle');
+  if (subtitleEl) subtitleEl.textContent = tr('history.subtitle', { days: HISTORY_DAYS });
   renderHistoryStats();
   renderHistoryList();
 }
@@ -2024,10 +2156,9 @@ function historySummarySpeech() {
   const snoozed = state.history.filter(e => e.action === 'snoozed').length;
 
   if (taken + skipped + snoozed === 0) {
-    return 'Sección Historial. Aún no hay registros.';
+    return tr('history.noRecordsSpeech');
   }
-  return 'Sección Historial. En los últimos ' + HISTORY_DAYS + ' días: ' +
-         taken + ' tomadas, ' + skipped + ' omitidas, ' + snoozed + ' pospuestas.';
+  return tr('history.summarySpeech', { days: HISTORY_DAYS, taken, skipped, snoozed });
 }
 
 function renderHistoryStats() {
@@ -2040,9 +2171,9 @@ function renderHistoryStats() {
   const snoozed = state.history.filter(e => e.action === 'snoozed').length;
 
   const stats = [
-    { value: taken,   label: 'Tomadas',   color: 'var(--success)' },
-    { value: skipped, label: 'Omitidas',  color: 'var(--danger)'  },
-    { value: snoozed, label: 'Pospuestas', color: 'var(--warning)' },
+    { value: taken,   label: tr('history.taken'),   color: 'var(--success)' },
+    { value: skipped, label: tr('history.skipped'),  color: 'var(--danger)'  },
+    { value: snoozed, label: tr('history.snoozed'), color: 'var(--warning)' },
   ];
 
   stats.forEach(s => {
@@ -2068,7 +2199,7 @@ function renderHistoryList() {
 
   if (state.history.length === 0) {
     const p = document.createElement('p');
-    p.textContent = 'No hay registros aún.';
+    p.textContent = tr('history.empty');
     p.style.textAlign = 'center';
     p.style.color = 'var(--text-muted)';
     p.style.padding = '32px';
@@ -2077,12 +2208,12 @@ function renderHistoryList() {
   }
 
   const icons   = { taken: '✅', skipped: '❌', snoozed: '⏰' };
-  const actions = { taken: 'Tomado', skipped: 'Omitido', snoozed: 'Pospuesto' };
+  const actions = { taken: tr('history.actionTaken'), skipped: tr('history.actionSkipped'), snoozed: tr('history.actionSnoozed') };
 
   state.history.slice(0, 60).forEach(entry => {
     const row = document.createElement('div');
     row.className = 'history-entry';
-    row.setAttribute('aria-label', entry.medName + ' ' + (actions[entry.action] || entry.action));
+    row.setAttribute('aria-label', tr('history.entryAriaLabel', { name: entry.medName, action: actions[entry.action] || entry.action }));
 
     const icon = document.createElement('span');
     icon.className = 'history-status-icon';
@@ -2106,8 +2237,8 @@ function renderHistoryList() {
     const ts = document.createElement('div');
     ts.className = 'history-time';
     const d = new Date(entry.ts);
-    ts.textContent = d.toLocaleDateString('es', { day: '2-digit', month: 'short' }) + '\n' +
-                     d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+    ts.textContent = d.toLocaleDateString(LANG, { day: '2-digit', month: 'short' }) + '\n' +
+                     d.toLocaleTimeString(LANG, { hour: '2-digit', minute: '2-digit' });
     ts.style.whiteSpace = 'pre';
 
     row.appendChild(icon);
@@ -2127,18 +2258,20 @@ function buildPrintHeader() {
   clearElement(header);
 
   const title = document.createElement('h1');
-  title.textContent = '💊 MediTime — Informe de medicación';
+  title.textContent = tr('print.reportTitle');
   header.appendChild(title);
 
   const lines = [];
   if (state.profile.name) {
-    lines.push('Paciente: ' + state.profile.name +
-      (state.profile.age ? ' (' + state.profile.age + ' años)' : ''));
+    lines.push(state.profile.age
+      ? tr('print.patientLineAge', { name: state.profile.name, age: state.profile.age })
+      : tr('print.patientLine', { name: state.profile.name }));
   }
-  if (state.profile.doctorName) lines.push('Médico: ' + state.profile.doctorName);
-  lines.push('Periodo: últimos ' + HISTORY_DAYS + ' días');
-  lines.push('Generado: ' + new Date().toLocaleDateString('es',
-    { day: '2-digit', month: 'long', year: 'numeric' }));
+  if (state.profile.doctorName) lines.push(tr('print.doctorLine', { name: state.profile.doctorName }));
+  lines.push(tr('print.period', { days: HISTORY_DAYS }));
+  lines.push(tr('print.generated', {
+    date: new Date().toLocaleDateString(LANG, { day: '2-digit', month: 'long', year: 'numeric' }),
+  }));
 
   lines.forEach(l => {
     const p = document.createElement('p');
@@ -2149,7 +2282,7 @@ function buildPrintHeader() {
 
 function shareWithDoctor() {
   buildPrintHeader();
-  speak('Abriendo el informe para compartir con su médico.');
+  speak(tr('history.shareSpeech'));
   window.print();
 }
 
@@ -2157,6 +2290,7 @@ function shareWithDoctor() {
 // SETTINGS VIEW
 // ══════════════════════════════════════════════════════════
 function populateSettings() {
+  setSelectValue('s-language', state.settings.language || 'auto');
   setInput('s-patient-name',  state.profile.name);
   setInput('s-patient-age',   state.profile.age);
   setInput('s-doctor-name',   state.profile.doctorName);
@@ -2207,8 +2341,8 @@ function saveSettings() {
 
   applySettings();
   saveState();
-  showToast('Ajustes guardados', 'success');
-  speak('Ajustes guardados correctamente.');
+  showToast(tr('settings.savedToast'), 'success');
+  speak(tr('settings.savedSpeech'));
 
   // Request notification permission if enabled
   if (state.settings.notifEnabled && 'Notification' in window && Notification.permission === 'default') {
@@ -2217,7 +2351,7 @@ function saveSettings() {
         state.settings.notifEnabled = false;
         setToggle('s-notif-toggle', false);
         saveState();
-        showToast('Permiso de notificaciones denegado', 'error');
+        showToast(tr('settings.notifPermissionDeniedToast'), 'error');
       }
     });
   }
@@ -2249,7 +2383,7 @@ function renderContacts() {
     const p = document.createElement('p');
     p.style.color = 'var(--text-muted)';
     p.style.fontSize = '0.88rem';
-    p.textContent = 'Sin contactos de emergencia.';
+    p.textContent = tr('settings.contactsEmpty');
     list.appendChild(p);
     return;
   }
@@ -2257,7 +2391,7 @@ function renderContacts() {
   state.contacts.forEach(c => {
     const row = document.createElement('div');
     row.className = 'contact-item';
-    row.setAttribute('aria-label', c.name + ', ' + c.phone);
+    row.setAttribute('aria-label', tr('settings.contactItemAriaLabel', { name: c.name, phone: c.phone }));
 
     const info = document.createElement('div');
     info.className = 'contact-info';
@@ -2272,7 +2406,7 @@ function renderContacts() {
 
     const delBtn = document.createElement('button');
     delBtn.className = 'btn-icon danger';
-    delBtn.setAttribute('aria-label', 'Eliminar contacto ' + c.name);
+    delBtn.setAttribute('aria-label', tr('settings.contactDeleteAriaLabel', { name: c.name }));
     delBtn.textContent = '🗑️';
     delBtn.addEventListener('click', () => removeContact(c.id));
 
@@ -2288,7 +2422,7 @@ function addContact() {
   const name    = sanitize(nameEl?.value || '');
   const phone   = sanitize(phoneEl?.value || '');
   if (!name || !phone) {
-    showToast('Ingresa nombre y teléfono del contacto', 'error');
+    showToast(tr('settings.contactRequiredToast'), 'error');
     return;
   }
   state.contacts.push({ id: String(Date.now()), name, phone });
@@ -2296,37 +2430,37 @@ function addContact() {
   if (nameEl)  nameEl.value  = '';
   if (phoneEl) phoneEl.value = '';
   renderContacts();
-  showToast(name + ' agregado', 'success');
-  speak(name + ' agregado como contacto de emergencia.');
+  showToast(tr('settings.contactAddedToast', { name }), 'success');
+  speak(tr('settings.contactAddedSpeech', { name }));
 }
 
 function removeContact(id) {
   const c = state.contacts.find(x => x.id === id);
   if (!c) return;
   showConfirmModal(
-    '¿Eliminar el contacto ' + c.name + '?',
+    tr('settings.contactDeleteConfirm', { name: c.name }),
     () => {
       state.contacts = state.contacts.filter(x => x.id !== id);
       saveState();
       renderContacts();
-      showToast(c.name + ' eliminado', 'warning');
+      showToast(tr('settings.contactDeletedToast', { name: c.name }), 'warning');
     }
   );
 }
 
 function clearAllData() {
   showConfirmModal(
-    '¿Borrar TODOS los datos de MediTime? Esta acción no se puede deshacer.',
+    tr('settings.clearConfirm1'),
     () => {
       showConfirmModal(
-        'Confirme: ¿está seguro de eliminar todos los medicamentos e historial?',
+        tr('settings.clearConfirm2'),
         async () => {
           if (_SecureStorage) {
             try { await _SecureStorage.remove({ key: STORAGE_KEY }); } catch (_) {}
           } else {
             localStorage.removeItem(STORAGE_KEY);
           }
-          showToast('Datos eliminados. Recargando…', 'warning');
+          showToast(tr('settings.clearedToast'), 'warning');
           setTimeout(() => location.reload(), 1500);
         }
       );
@@ -2355,9 +2489,9 @@ function setupDoubleTap() {
       // First tap — announce and block
       e.preventDefault();
       e.stopImmediatePropagation();
-      const label = target.getAttribute('aria-label') || target.textContent.trim().slice(0, 40) || 'Botón';
-      speak(label + '. Toca dos veces para activar.');
-      showToast(label.slice(0, 40) + ' — toca dos veces', '');
+      const label = target.getAttribute('aria-label') || target.textContent.trim().slice(0, 40) || tr('a11y.genericButton');
+      speak(tr('a11y.doubleTapHintSpeech', { label }));
+      showToast(tr('a11y.doubleTapHintToast', { label: label.slice(0, 40) }), '');
       doubleTapState = { el: target, ts: now };
     }
   }, true);
@@ -2391,7 +2525,7 @@ function buildColorPicker() {
     swatch.className = 'color-swatch' + (i === 0 ? ' selected' : '');
     swatch.style.background = color;
     swatch.dataset.color = color;
-    swatch.setAttribute('aria-label', 'Color ' + (i + 1));
+    swatch.setAttribute('aria-label', tr('form.colorAriaLabel', { n: i + 1 }));
     swatch.addEventListener('click', () => {
       document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
       swatch.classList.add('selected');
@@ -2462,8 +2596,8 @@ function wireEvents() {
       state.settings.ttsEnabled = !state.settings.ttsEnabled;
       ttsBtn.setAttribute('aria-pressed', state.settings.ttsEnabled ? 'true' : 'false');
       saveState();
-      speak(state.settings.ttsEnabled ? 'Voz activada.' : '');
-      showToast('Voz ' + (state.settings.ttsEnabled ? 'activada' : 'desactivada'), '');
+      speak(state.settings.ttsEnabled ? tr('a11y.ttsOnSpeech') : '');
+      showToast(state.settings.ttsEnabled ? tr('a11y.ttsOnToast') : tr('a11y.ttsOffToast'), '');
     });
   }
 
@@ -2473,7 +2607,7 @@ function wireEvents() {
 
   // Cancel form
   const btnCancel = document.getElementById('btn-cancel-form');
-  if (btnCancel) btnCancel.addEventListener('click', () => { speak('Formulario cancelado.'); hideFormPanel(); });
+  if (btnCancel) btnCancel.addEventListener('click', () => { speak(tr('form.cancelledSpeech')); hideFormPanel(); });
 
   // Add time button (opción avanzada: hora actual)
   const btnAddTime = document.getElementById('btn-add-time');
@@ -2481,7 +2615,7 @@ function wireEvents() {
 
   // Botones de rutina (Mañana, Mediodía, Tarde, Noche, Antes de dormir)
   document.querySelectorAll('.time-preset-btn').forEach(btn => {
-    btn.addEventListener('click', () => addPresetTime(btn.dataset.time, btn.dataset.label || ''));
+    btn.addEventListener('click', () => addPresetTime(btn.dataset.time, btn.dataset.preset || ''));
   });
 
   // Selector manual con + / −
@@ -2526,8 +2660,8 @@ function wireEvents() {
     if (sosPractice) {
       e.preventDefault();
       const statusEl = document.getElementById('sos-status');
-      if (statusEl) statusEl.textContent = 'Modo práctica: no se realizará ninguna llamada.';
-      speak('Modo práctica. No se realizará ninguna llamada.');
+      if (statusEl) statusEl.textContent = tr('sos.practiceNoCallStatus');
+      speak(tr('sos.practiceNoCallSpeech'));
       return;
     }
     sosCallBtn.href = 'tel:' + (sanitizePhone(state.settings.sosNumber) || '911');
@@ -2536,14 +2670,17 @@ function wireEvents() {
   // Settings — toggle buttons
   // Cada toggle se aplica y se guarda AL INSTANTE: el usuario ve el efecto
   // (modo oscuro, letra grande…) en el momento del toque, sin "Guardar ajustes".
+  // `on`/`off` guardan la CLAVE de traducción, no el texto ya resuelto: si se
+  // resolviera aquí con tr(), el anuncio quedaría fijado al idioma que estaba
+  // activo al arrancar la app y no cambiaría tras un cambio de idioma en caliente.
   const toggleConfig = {
-    's-tts-toggle':       { key: 'ttsEnabled',   on: 'Voz activada.',             off: 'Voz desactivada.' },
-    's-contrast-toggle':  { key: 'highContrast', on: 'Alto contraste activado.',  off: 'Alto contraste desactivado.' },
-    's-bigfont-toggle':   { key: 'bigFont',      on: 'Letra grande activada.',    off: 'Letra grande desactivada.' },
-    's-dark-toggle':      { key: 'darkMode',     on: 'Modo oscuro activado.',     off: 'Modo oscuro desactivado.' },
-    's-doubletap-toggle': { key: 'doubleTap',    on: 'Doble toque activado.',     off: 'Doble toque desactivado.' },
-    's-notif-toggle':     { key: 'notifEnabled', on: 'Notificaciones activadas.', off: 'Notificaciones desactivadas.' },
-    's-senior-toggle':    { key: 'seniorMode',   on: 'Modo adulto mayor activado.', off: 'Modo adulto mayor desactivado.' },
+    's-tts-toggle':       { key: 'ttsEnabled',   on: 'a11y.ttsOnSpeech',      off: 'a11y.ttsOffSpeech' },
+    's-contrast-toggle':  { key: 'highContrast', on: 'a11y.contrastOnSpeech', off: 'a11y.contrastOffSpeech' },
+    's-bigfont-toggle':   { key: 'bigFont',      on: 'a11y.bigFontOnSpeech',  off: 'a11y.bigFontOffSpeech' },
+    's-dark-toggle':      { key: 'darkMode',     on: 'a11y.darkOnSpeech',     off: 'a11y.darkOffSpeech' },
+    's-doubletap-toggle': { key: 'doubleTap',    on: 'a11y.doubleTapOnSpeech', off: 'a11y.doubleTapOffSpeech' },
+    's-notif-toggle':     { key: 'notifEnabled', on: 'a11y.notifOnSpeech',    off: 'a11y.notifOffSpeech' },
+    's-senior-toggle':    { key: 'seniorMode',   on: 'a11y.seniorOnSpeech',   off: 'a11y.seniorOffSpeech' },
   };
   Object.keys(toggleConfig).forEach(id => {
     const el = document.getElementById(id);
@@ -2556,7 +2693,7 @@ function wireEvents() {
       // La Voz se enciende ANTES de hablar para que su propio anuncio se oiga;
       // al desactivarla, se habla primero y se apaga después.
       if (cfg.key === 'ttsEnabled' && next) state.settings.ttsEnabled = true;
-      speak(next ? cfg.on : cfg.off);
+      speak(tr(next ? cfg.on : cfg.off));
 
       state.settings[cfg.key] = next;
       applySettings();
@@ -2573,7 +2710,7 @@ function wireEvents() {
             state.settings.notifEnabled = false;
             setToggle('s-notif-toggle', false);
             saveState();
-            showToast('Permiso de notificaciones denegado', 'error');
+            showToast(tr('settings.notifPermissionDeniedToast'), 'error');
           }
         });
       }
@@ -2589,6 +2726,10 @@ function wireEvents() {
   if (btnNativeTest) btnNativeTest.addEventListener('click', scheduleNativeAlarmTest);
   const btnDiag = document.getElementById('btn-notif-diagnostics');
   if (btnDiag) btnDiag.addEventListener('click', showNotifDiagnostics);
+
+  // Idioma — cambia en caliente, sin recargar la app
+  const langSelect = document.getElementById('s-language');
+  if (langSelect) langSelect.addEventListener('change', () => setLanguage(langSelect.value));
 
   // Settings save
   const btnSave = document.getElementById('btn-save-settings');
@@ -2655,6 +2796,7 @@ function handleShortcut() {
 // ══════════════════════════════════════════════════════════
 async function init() {
   _resolvePlugins();
+  await preloadI18nFallback();
 
   // Biometric gate runs inside loadState(). If auth fails,
   // _showLockScreen() is injected and we return immediately —
@@ -2662,6 +2804,7 @@ async function init() {
   await loadState();
   if (document.getElementById('lock-overlay')) return;
 
+  await initI18n();
   applySettings();
   buildColorPicker();
   wireEvents();
@@ -2692,7 +2835,7 @@ async function init() {
     if (splash) splash.classList.add('hidden');
   }, 900);
 
-  setTimeout(() => speak(getGreeting() + '. Bienvenido a MediTime.'), 1200);
+  setTimeout(() => speak(getGreeting() + '. ' + tr('greeting.welcome')), 1200);
 }
 
 document.addEventListener('DOMContentLoaded', () => { init(); });

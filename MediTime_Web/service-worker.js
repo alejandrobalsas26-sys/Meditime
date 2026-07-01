@@ -1,10 +1,12 @@
-const CACHE_NAME = 'meditime-v5';
+const CACHE_NAME = 'meditime-v6';
 
 const PRECACHE_URLS = [
   'index.html',
   'styles.css',
   'app.js',
   'manifest.json',
+  'locales/es.json',
+  'locales/en.json',
   'fonts/dm-sans-latin.woff2',
   'fonts/dm-sans-latin-ext.woff2',
   'assets/confirmacion.wav',
